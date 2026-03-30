@@ -1,0 +1,1081 @@
+{
+  "name": "8 - UpgradeKernel Workflow (Fixed Ticket Handover)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -176,
+        2208
+      ],
+      "id": "478efa6b-11c9-494c-af1d-8420a0b2b641"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM maintenance_windows \nWHERE NOW() >= downtime_window_start \n  AND NOW() <= downtime_window_close\n  AND status = 'pending'; \n\n-- WICHTIG: Achte darauf, dass du eine Status-Spalte (z.B. status='pending') nutzt, \n-- damit dieser Job in den 5 Minuten nicht jedes Mal denselben Server ausf\u00fchrt!",
+        "options": {}
+      },
+      "name": "Get Maintenance Windows",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        48,
+        2208
+      ],
+      "id": "245f9aff-26f6-4283-9bbc-221a631fb703",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "10254a81-efa1-49e0-a052-50b82289eda3",
+              "leftValue": "={{$json.target_ip}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        256,
+        2208
+      ],
+      "id": "c6e4efc0-33f1-48b7-bf5b-3b0acac27bdd",
+      "name": "Check Target IP1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "16517516-5765-4e57-a1b6-bbebcf5d8c40",
+              "name": "target_ip",
+              "value": "={{$json.target_ip}}",
+              "type": "string"
+            },
+            {
+              "id": "70deab3f-60f9-4e53-bc0f-45a023370432",
+              "name": "hostname",
+              "value": "={{$json.hostname}}",
+              "type": "string"
+            },
+            {
+              "id": "14b5fc7a-1f51-4bef-82d4-91039e39aa7e",
+              "name": "ticket_id",
+              "value": "={{$json.execution_ticket_id || $json.ticket_id}}",
+              "type": "string"
+            },
+            {
+              "id": "1ab8d068-ec50-4010-b2ef-d95254fbaa81",
+              "name": "awx_url",
+              "value": "http://34.40.108.56:30080",
+              "type": "string"
+            },
+            {
+              "id": "4e574a2b-3e38-4cca-b272-1f720c5741c6",
+              "name": "job_template_id",
+              "value": "12",
+              "type": "string"
+            },
+            {
+              "id": "auto-sys-1",
+              "name": "system_id",
+              "value": "={{$json.system_id}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-custmail-1",
+              "name": "customer_email",
+              "value": "={{$json.customer_email}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-custname-1",
+              "name": "customer_name",
+              "value": "={{$json.customer_name}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-exticket-1",
+              "name": "execution_ticket_id",
+              "value": "={{$json.execution_ticket_id || $json.ticket_id}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        464,
+        2112
+      ],
+      "id": "518e0980-13cd-4c73-a31d-a7ca299bd1a9",
+      "name": "Prepare AWX Parameters1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.awx_url}}/api/v2/job_templates/{{$json.job_template_id}}/launch/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer Pwzg1BGioG2x0ydDjskoqAVdvs4Fuv"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"extra_vars\": {\n    \"target_ip\": \"{{$json.target_ip}}\",\n    \"hostname\": \"{{$json.hostname}}\",\n    \"ticket_id\": \"{{$json.ticket_id}}\"\n  },\n  \"limit\": \"{{$json.hostname}}\"\n}",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        2112
+      ],
+      "id": "54488c9d-cf79-479e-9765-caba5b775554",
+      "name": "Launch AWX Job1"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1088,
+        2112
+      ],
+      "id": "74463a16-6c7a-4fa8-8d20-b0e2abe3bfbe",
+      "name": "Wait1",
+      "webhookId": "711bf514-e9b7-42c8-8483-9a4b446238dc"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "605444ed-42db-4873-be92-a328d98dff53",
+              "leftValue": "={{$json.status}}",
+              "rightValue": "successful",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1504,
+        2112
+      ],
+      "id": "e46bbb59-4a7b-4a33-be41-8d471c1ba5cd",
+      "name": "Is AWX Job Successful?1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "99da8336-c34b-45bd-935f-83a08a495430",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "69e7f020-0093-4c6b-b7d2-d993767e21ca",
+              "name": "message",
+              "value": "Kernel upgrade completed successfully",
+              "type": "string"
+            },
+            {
+              "id": "71ff3191-c7b0-4999-9181-5734498bc7a3",
+              "name": "awx_job_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"awx_job_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "41ef9d7a-b99f-48f3-803a-a10c7fca130e",
+              "name": "ticket_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"ticket_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "38abccb0-dd5c-4d42-9ac8-bc384b1dcc67",
+              "name": "hostname",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"hostname\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-custmail-3",
+              "name": "customer_email",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"customer_email\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-custname-3",
+              "name": "customer_name",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"customer_name\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-exticket-3",
+              "name": "execution_ticket_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"execution_ticket_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-sys-succ-1",
+              "name": "system_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"system_id\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1728,
+        2000
+      ],
+      "id": "78d7c2e4-8f5d-4355-b12e-ce7a46aad5ae",
+      "name": "Set Success Response1"
+    },
+    {
+      "parameters": {
+        "url": "={{$json.awx_url}}/api/v2/jobs/{{$json.awx_job_id}}/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer Pwzg1BGioG2x0ydDjskoqAVdvs4Fuv"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1296,
+        2112
+      ],
+      "id": "586e8264-9280-409e-8cc5-b492077702e1",
+      "name": "Check AWX Job Status1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a3a21047-aacb-47f2-84ae-60611da68504",
+              "name": "awx_job_id",
+              "value": "={{$json.job}}",
+              "type": "string"
+            },
+            {
+              "id": "d20f90ae-d722-4b47-9b31-c9965f97cf68",
+              "name": "target_ip",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"target_ip\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "3db94dba-f961-4536-bfa7-c2f7e375f4d4",
+              "name": "hostname",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"hostname\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "07cedb0b-8c1e-45ac-aaa1-30dc583d5c10",
+              "name": "ticket_id",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"ticket_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "18a571fd-3540-4c17-94bf-f40e108acf7a",
+              "name": "awx_url",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"awx_url\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-sys-2",
+              "name": "system_id",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"system_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-custmail-2",
+              "name": "customer_email",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"customer_email\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-custname-2",
+              "name": "customer_name",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"customer_name\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-exticket-2",
+              "name": "execution_ticket_id",
+              "value": "={{$node[\"Prepare AWX Parameters1\"].json[\"execution_ticket_id\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        2112
+      ],
+      "id": "6719374f-f7f3-49d8-8162-f2dade2a769c",
+      "name": "Save AWX Job ID1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "32af58e8-0c0b-49fc-a796-474b9b6f653e",
+              "leftValue": "={{$json.status}}",
+              "rightValue": "running",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1712,
+        2208
+      ],
+      "id": "14a28af9-41c2-4e3d-8757-ef1e48ba5051",
+      "name": "Is AWX Job Still Running?1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1936,
+        2000
+      ],
+      "id": "e86ece5f-cf0e-4d20-9be2-e71d25a7355b",
+      "name": "Return Success Response"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b07fce6a-7288-47a5-8a69-b4328bcb4a4a",
+              "name": "status",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "7c73720c-43a9-4c4c-9a27-f6311643b171",
+              "name": "message",
+              "value": "Kernel upgrade failed",
+              "type": "string"
+            },
+            {
+              "id": "963f1d1c-4aa8-45bb-8c65-bff042e1595a",
+              "name": "awx_status",
+              "value": "={{$json.status}}",
+              "type": "string"
+            },
+            {
+              "id": "bf73b96a-6ee0-440a-81a5-34d4b34fb365",
+              "name": "awx_job_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"awx_job_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "e29752d7-a657-48ab-9abf-d4b176990754",
+              "name": "ticket_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"ticket_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-sys-3",
+              "name": "system_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"system_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-sys-4",
+              "name": "upgrade_job_id",
+              "value": "={{$node[\"Save AWX Job ID1\"].json[\"awx_job_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "auto-sys-5",
+              "name": "incident_time",
+              "value": "={{$now}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2144,
+        2256
+      ],
+      "id": "64f12539-30e2-4d55-915b-87cef124b2d3",
+      "name": "Set Failure Response1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2352,
+        2256
+      ],
+      "id": "106a59b0-73b9-4b4f-b22c-68081ccc3f16",
+      "name": "Return Failure Response1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5bbf5ec1-bb62-4881-8451-75009edf12ad",
+              "leftValue": "={{$json.status}}",
+              "rightValue": "pending",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1936,
+        2240
+      ],
+      "id": "f32c35a4-bbd3-4570-af01-d660d18b31fc",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "workflowId": "kOLsxGiAp7APTzQO",
+        "mode": "all",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        2448
+      ],
+      "id": "dfc4ed2d-a536-48af-8032-08bd31f95790",
+      "name": "Trigger 8b RCA Add-on"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "awx_kernel_logs",
+          "mode": "list",
+          "cachedResultName": "awx_kernel_logs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.awx_job_id }}",
+            "boot_free_mb": 0,
+            "job_name": "Kernel Upgrade failed",
+            "status": "={{ $json.status }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_name",
+              "displayName": "job_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "host_ip",
+              "displayName": "host_ip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "os_distro",
+              "displayName": "os_distro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "kernel_version",
+              "displayName": "kernel_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reboot_required",
+              "displayName": "reboot_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "boot_free_mb",
+              "displayName": "boot_free_mb",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2560,
+        2256
+      ],
+      "id": "511ca240-8635-4f82-8fd9-f2c5545c9ced",
+      "name": "Insert rows in AWX Kernel logs",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "awx_kernel_logs",
+          "mode": "list",
+          "cachedResultName": "awx_kernel_logs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.awx_job_id }}",
+            "boot_free_mb": 0,
+            "status": "={{ $json.status }}",
+            "job_name": "Upgrade Kernel",
+            "id": 0
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_name",
+              "displayName": "job_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "host_ip",
+              "displayName": "host_ip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "os_distro",
+              "displayName": "os_distro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "kernel_version",
+              "displayName": "kernel_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reboot_required",
+              "displayName": "reboot_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "boot_free_mb",
+              "displayName": "boot_free_mb",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2144,
+        2000
+      ],
+      "id": "07114694-a487-486c-95e0-d4b47d359dc9",
+      "name": "Insert rows in AWX Kernel logs1",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": "pu73z5jTHQBOdLzB",
+        "mode": "all",
+        "options": {}
+      },
+      "name": "Trigger 9 Postcheck Health Score",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        1824
+      ],
+      "id": "397844b6-e78e-475a-9ae0-ed965aa7635a"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Maintenance Windows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Maintenance Windows": {
+      "main": [
+        [
+          {
+            "node": "Check Target IP1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Target IP1": {
+      "main": [
+        [
+          {
+            "node": "Prepare AWX Parameters1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AWX Parameters1": {
+      "main": [
+        [
+          {
+            "node": "Launch AWX Job1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch AWX Job1": {
+      "main": [
+        [
+          {
+            "node": "Save AWX Job ID1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Check AWX Job Status1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is AWX Job Successful?1": {
+      "main": [
+        [
+          {
+            "node": "Set Success Response1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is AWX Job Still Running?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Success Response1": {
+      "main": [
+        [
+          {
+            "node": "Return Success Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger 9 Postcheck Health Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check AWX Job Status1": {
+      "main": [
+        [
+          {
+            "node": "Is AWX Job Successful?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save AWX Job ID1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is AWX Job Still Running?1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Success Response": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in AWX Kernel logs1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Failure Response1": {
+      "main": [
+        [
+          {
+            "node": "Return Failure Response1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger 8b RCA Add-on",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Failure Response1": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in AWX Kernel logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Failure Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "29eb38a1-ad45-4d2c-94aa-d66d9e9b24b9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "NUKN5Jp6cKl0K1SY",
+  "tags": []
+}
