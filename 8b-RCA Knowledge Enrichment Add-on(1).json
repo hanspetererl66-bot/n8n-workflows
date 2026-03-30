@@ -1,0 +1,840 @@
+{
+  "name": "8b-RCA Knowledge Enrichment Add-on",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "3bff6c39-4b76-4fcf-94d3-68c1382ed265",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        2944,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "81bae4d5-679c-40c3-b482-82728976a11c",
+      "name": "Set - Normalize RCA Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3184,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.GLPI_URL + '/apirest.php/initSession' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "App-Token",
+              "value": "={{ $env.GLPI_APP_TOKEN }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'user_token ' + $env.GLPI_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "73ae9c7e-63de-4bf9-a03d-c2b24ebba1df",
+      "name": "HTTP - GLPI Init Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3456,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GLPI_URL + '/apirest.php/Problem' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "App-Token",
+              "value": "={{ $env.GLPI_APP_TOKEN }}"
+            },
+            {
+              "name": "Session-Token",
+              "value": "={{ $node['HTTP - GLPI Init Session'].json.session_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({\n  input: {\n    name: 'RCA Ticket: Kernel Upgrade Failure - ' + $node['Set - Normalize RCA Input'].json.hostname,\n    content: 'Automatic RCA initiated after kernel upgrade failure.\\n\\nSystem: ' + $node['Set - Normalize RCA Input'].json.hostname + '\\nSystem ID: ' + $node['Set - Normalize RCA Input'].json.system_id + '\\nUpgrade Job ID: ' + $node['Set - Normalize RCA Input'].json.upgrade_job_id + '\\nIncident Time: ' + $node['Set - Normalize RCA Input'].json.incident_time + '\\n\\nAnalysis is running now.',\n    status: 1,\n    priority: 4,\n    impact: 4,\n    urgency: 3\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "12e6d931-8938-4ee4-bc27-a1623da0ac0f",
+      "name": "HTTP - Create GLPI Problem Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3712,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "15a476fe-ad09-4f89-8c54-a63135603321",
+      "name": "Set - Store Problem ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3968,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AWX_URL + '/api/v2/job_templates/' + $env.AWX_RCA_TEMPLATE_ID + '/launch/' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.AWX_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({\n  extra_vars: {\n    target_host: $json.hostname,\n    system_id: $json.system_id,\n    failed_upgrade_job_id: $json.upgrade_job_id,\n    incident_time: $json.incident_time\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "9c393cd0-92b6-4054-95be-3e5ecc1911d8",
+      "name": "HTTP - Launch AWX RCA Collector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4224,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "33694ab6-1c0b-4444-8304-9970a16d28c5",
+      "name": "Set - Store AWX RCA Job ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4480,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "id": "983ff7db-b579-413b-bee7-1b050e14c380",
+      "name": "Wait - 20 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4720,
+        3824
+      ],
+      "webhookId": "dffe3639-b549-4843-9731-2115175f0572"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.AWX_URL + '/api/v2/jobs/' + $node['Set - Store AWX RCA Job ID'].json.rca_awx_job_id + '/' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.AWX_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a8a0f73-ad58-48c5-a4c8-5e1b60befcf2",
+      "name": "HTTP - Check AWX RCA Job Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4960,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.finished }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "13b674b1-7c48-4ffa-905d-d42e5568825a",
+      "name": "IF - RCA Collector Finished",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5200,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.AWX_URL + '/api/v2/jobs/' + $node['Set - Store AWX RCA Job ID'].json.rca_awx_job_id + '/stdout/?format=txt_download' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.AWX_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "string"
+            }
+          }
+        }
+      },
+      "id": "f0ba1890-9473-44ec-a058-b732e9dcc205",
+      "name": "HTTP - Get AWX Job Stdout",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5440,
+        3744
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.AWX_URL + '/api/v2/jobs/' + $node['Set - Store AWX RCA Job ID'].json.rca_awx_job_id + '/job_events/?page_size=200' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.AWX_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5e739ab0-462c-460a-a146-edcd4d3e3e29",
+      "name": "HTTP - Get AWX Job Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5440,
+        3904
+      ]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript"
+      },
+      "id": "99a7a9d0-1b11-4edf-bdc8-ca7320125861",
+      "name": "Code - Build RCA Evidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5712,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LLM_API_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.LLM_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({\n  model: $env.LLM_MODEL,\n  messages: [\n    { role: 'system', content: $json.prompt },\n    { role: 'user', content: 'Hostname: ' + $json.hostname + '\\nSystem ID: ' + $json.system_id + '\\nExecution Ticket: ' + $json.execution_ticket_id + '\\nFailed Upgrade Job ID: ' + $json.upgrade_job_id + '\\nIncident Time: ' + $json.incident_time + '\\n\\nAWX STDOUT:\\n' + $json.awx_stdout + '\\n\\nAWX EVENTS:\\n' + JSON.stringify($json.awx_events) }\n  ],\n  temperature: 0.1\n}) }}",
+        "options": {}
+      },
+      "id": "8036d397-e8f8-436b-88c4-756f1adc2c85",
+      "name": "HTTP - Call LLM for RCA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6080,
+        3728
+      ]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript"
+      },
+      "id": "bb24b14d-b3ef-4ab1-b587-667678294cd6",
+      "name": "Code - Parse LLM RCA JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6320,
+        3728
+      ]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript"
+      },
+      "id": "1d55d9fd-d39d-4d16-88cb-3021d00fca54",
+      "name": "Code - Build Customer Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6576,
+        3728
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.customer_email }}",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "={{ $json.email_subject }}",
+        "options": {}
+      },
+      "id": "57e7b4c8-5693-4c15-a05d-22bdb145c9a1",
+      "name": "Send Email - Customer Failure Notice",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        6816,
+        3728
+      ],
+      "webhookId": "e1cd24e6-a6ad-4624-9a50-bfcf370c0633",
+      "credentials": {
+        "smtp": {
+          "id": "zNzjgdjk4Xr1NAMG",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "JavaScript"
+      },
+      "id": "72a5d40f-29b9-42db-a744-d3ca5dd3387e",
+      "name": "Code - Build GLPI RCA Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7072,
+        3728
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GLPI_URL + '/apirest.php/ITILFollowup' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "App-Token",
+              "value": "={{ $env.GLPI_APP_TOKEN }}"
+            },
+            {
+              "name": "Session-Token",
+              "value": "={{ $node['HTTP - GLPI Init Session'].json.session_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ input: { itemtype: 'Problem', items_id: $json.problem_id, content: '<h3>RCA ANALYSIS RESULT</h3><br>' + $json.glpi_content.replace(/\\n/g, '<br>') } }) }}",
+        "options": {}
+      },
+      "id": "2d02a170-2a92-4e14-ad6b-0c9e50e14d06",
+      "name": "HTTP - Add RCA Followup to GLPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7376,
+        3728
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.GLPI_URL + '/apirest.php/killSession' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "App-Token",
+              "value": "={{ $env.GLPI_APP_TOKEN }}"
+            },
+            {
+              "name": "Session-Token",
+              "value": "={{ $node['HTTP - GLPI Init Session'].json.session_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "33268eed-d1df-4712-9bd8-72b7bf9242e5",
+      "name": "HTTP - Kill GLPI Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7632,
+        3728
+      ]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript"
+      },
+      "id": "d4fd5e8a-518f-4f93-93e9-c277736a3815",
+      "name": "Code - Extract Search Terms",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5664,
+        3184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ranked AS (\n  SELECT\n    id,\n    created_at,\n    failure_symptom,\n    root_cause,\n    fix,\n    severity,\n    keywords,\n    full_rca_text,\n    (\n      CASE WHEN lower(coalesce(full_rca_text, '')) LIKE '%' || lower({{ $json.rca_keywords[0] || '' }}) || '%' THEN 3 ELSE 0 END +\n      CASE WHEN lower(coalesce(full_rca_text, '')) LIKE '%' || lower({{ $json.rca_keywords[1] || '' }}) || '%' THEN 2 ELSE 0 END +\n      CASE WHEN lower(coalesce(full_rca_text, '')) LIKE '%' || lower({{ $json.rca_keywords[2] || '' }}) || '%' THEN 1 ELSE 0 END\n    ) AS relevance_score\n  FROM rca_cases\n)\nSELECT\n  id,\n  created_at,\n  failure_symptom,\n  root_cause,\n  fix,\n  severity,\n  keywords,\n  full_rca_text,\n  relevance_score\nFROM ranked\nWHERE relevance_score > 0\nORDER BY relevance_score DESC, created_at DESC\nLIMIT 5;\n",
+        "options": {}
+      },
+      "id": "68902057-5128-4060-b6e3-6d95279ba808",
+      "name": "Postgres - Search Similar RCA Cases",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        5952,
+        3184
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.openai.com/v1/vector_stores/' + $env.OPENAI_RCA_VECTOR_STORE_ID + '/search' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.OPENAI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({\n  query: [\n    'Kernel upgrade failure RCA',\n    $node['Code - Extract Search Terms'].json.rca_keywords.join(' '),\n    $node['Code - Extract Search Terms'].json.hostname || '',\n    $node['Code - Extract Search Terms'].json.system_id || '',\n    ($node['Code - Extract Search Terms'].json.awx_stdout || '').slice(0, 1500)\n  ].filter(Boolean).join(' | '),\n  max_num_results: 5\n}) }}",
+        "options": {}
+      },
+      "id": "d4a505d1-f606-4023-b801-43e6b0e1403e",
+      "name": "HTTP - Search RCA Knowledge Base",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6240,
+        3184
+      ]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript"
+      },
+      "id": "62fc3f78-18a7-45a0-b830-4025977c2465",
+      "name": "Code - Merge Evidence + Knowledge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6512,
+        3184
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f8aa1d0f-f3f3-4074-b1f2-e1031971b9fd",
+      "name": "Set - Enhanced RCA Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6800,
+        3184
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Set - Normalize RCA Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Normalize RCA Input": {
+      "main": [
+        [
+          {
+            "node": "HTTP - GLPI Init Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - GLPI Init Session": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Create GLPI Problem Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Create GLPI Problem Ticket": {
+      "main": [
+        [
+          {
+            "node": "Set - Store Problem ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Store Problem ID": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Launch AWX RCA Collector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Launch AWX RCA Collector": {
+      "main": [
+        [
+          {
+            "node": "Set - Store AWX RCA Job ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Store AWX RCA Job ID": {
+      "main": [
+        [
+          {
+            "node": "Wait - 20 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait - 20 Seconds": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Check AWX RCA Job Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Check AWX RCA Job Status": {
+      "main": [
+        [
+          {
+            "node": "IF - RCA Collector Finished",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - RCA Collector Finished": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Get AWX Job Stdout",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP - Get AWX Job Events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait - 20 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Get AWX Job Stdout": {
+      "main": [
+        [
+          {
+            "node": "Code - Build RCA Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Get AWX Job Events": {
+      "main": [
+        [
+          {
+            "node": "Code - Build RCA Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build RCA Evidence": {
+      "main": [
+        [
+          {
+            "node": "Code - Extract Search Terms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Call LLM for RCA": {
+      "main": [
+        [
+          {
+            "node": "Code - Parse LLM RCA JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parse LLM RCA JSON": {
+      "main": [
+        [
+          {
+            "node": "Code - Build Customer Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build Customer Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Customer Failure Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Customer Failure Notice": {
+      "main": [
+        [
+          {
+            "node": "Code - Build GLPI RCA Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build GLPI RCA Update": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Add RCA Followup to GLPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Extract Search Terms": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Search Similar RCA Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Search Similar RCA Cases": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Search RCA Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Search RCA Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Code - Merge Evidence + Knowledge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Merge Evidence + Knowledge": {
+      "main": [
+        [
+          {
+            "node": "Set - Enhanced RCA Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Enhanced RCA Prompt": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Call LLM for RCA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Add RCA Followup to GLPI": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Kill GLPI Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "64280b93-0392-4939-8c52-ce1b212fda0c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "kOLsxGiAp7APTzQO",
+  "tags": []
+}

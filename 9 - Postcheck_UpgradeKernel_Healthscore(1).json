@@ -1,0 +1,968 @@
+{
+  "name": "9 - Postcheck_UpgradeKernel_Healthscore",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kernel-postcheck",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c9229791-fcfe-475c-abb2-fc2abdabc103",
+      "name": "PostcheckTrigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        128,
+        1120
+      ],
+      "webhookId": "df65616f-d10a-4dfd-a2c8-0f8cad8175b6"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "ffa0a2dc-7f84-4101-8f9f-d76542d8c3ce",
+      "name": "Normalize_Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        368,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM maintenance_windows\nWHERE hostname = '{{$json.hostname}}'\nORDER BY downtime_start DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "9ebe9c57-c05a-464c-a228-0a4b0af98662",
+      "name": "Get_Booking_Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        608,
+        1120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://34.141.119.13:30080/api/v2/job_templates/12/launch/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"extra_vars\": {\n    \"target_host\": $json.hostname,\n    \"system_id\": $json.system_id\n  }\n}",
+        "options": {}
+      },
+      "id": "40745e21-fc55-4524-aa8f-f8805683a68b",
+      "name": "Trigger_AWX_Postcheck",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        848,
+        1120
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "uzEGYftAkvB6nSnS",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "awx_job_id",
+              "value": "={{$json.id}}",
+              "type": "string"
+            },
+            {
+              "name": "hostname",
+              "value": "={{$node[\"Normalize_Input\"].json.hostname}}",
+              "type": "string"
+            },
+            {
+              "name": "system_id",
+              "value": "={{$node[\"Normalize_Input\"].json.system_id}}",
+              "type": "string"
+            },
+            {
+              "name": "execution_ticket_id",
+              "value": "={{$node[\"Normalize_Input\"].json.execution_ticket_id}}",
+              "type": "string"
+            },
+            {
+              "name": "customer_email",
+              "value": "={{$node[\"Normalize_Input\"].json.customer_email}}",
+              "type": "string"
+            },
+            {
+              "name": "customer_name",
+              "value": "={{$node[\"Normalize_Input\"].json.customer_name}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dec995d6-6b6c-48b2-8253-82853551375c",
+      "name": "Store_AWX_Job_Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "id": "37c9eb19-000c-4344-9598-9f587d2ef911",
+      "name": "Wait_30s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1328,
+        1120
+      ],
+      "webhookId": "f3d821fa-170d-49bb-95d1-29ccf2f7ea99"
+    },
+    {
+      "parameters": {
+        "url": "=http://34.141.119.13:30080/api/v2/jobs/{{$json.awx_job_id}}/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "a3591f1a-8e51-4c99-8c18-fb51aa60dda4",
+      "name": "Check_AWX_Job_Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1568,
+        1120
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "uzEGYftAkvB6nSnS",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.status}}",
+                    "rightValue": "successful",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.status}}",
+                    "rightValue": "failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.status}}",
+                    "rightValue": "running",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "443052da-3d31-4b0c-874c-dba5eca9db93",
+      "name": "Switch_Status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1808,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://34.141.119.13:30080/api/v2/jobs/{{$node[\"Store_AWX_Job_Metadata\"].json.awx_job_id}}/job_events/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "0e76fc30-97e4-4166-98ea-0a466a8082ba",
+      "name": "Get_AWX_Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2048,
+        992
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "uzEGYftAkvB6nSnS",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $json.results || [];\nlet log = '';\nfor (const e of events) {\n  if (e && e.stdout) log += e.stdout + '\\n';\n}\nreturn [{\n  json: {\n    hostname: $node[\"Store_AWX_Job_Metadata\"].json.hostname,\n    system_id: $node[\"Store_AWX_Job_Metadata\"].json.system_id,\n    execution_ticket_id: $node[\"Store_AWX_Job_Metadata\"].json.execution_ticket_id,\n    customer_email: $node[\"Store_AWX_Job_Metadata\"].json.customer_email,\n    customer_name: $node[\"Store_AWX_Job_Metadata\"].json.customer_name,\n    awx_job_id: $node[\"Store_AWX_Job_Metadata\"].json.awx_job_id,\n    log,\n    raw_job_events: events,\n    postcheck_timestamp: new Date().toISOString()\n  }\n}];\n"
+      },
+      "id": "32791b01-e5e5-4d3a-b28a-dbdc094b171e",
+      "name": "Parse_Postcheck_Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const log = ($json.log || '').toString();\n\nfunction countFailedServices(text) {\n  const sectionMatch = text.match(/failed services[\\s\\S]*?(?:\\n\\n|$)/i);\n  if (!sectionMatch) return 0;\n  const lines = sectionMatch[0].split('\\n').map(l => l.trim()).filter(Boolean);\n  const serviceLines = lines.filter(l =>\n    /service/i.test(l) &&\n    !/loaded units listed/i.test(l) &&\n    !/0 loaded units listed/i.test(l)\n  );\n  return serviceLines.length;\n}\n\nfunction containsCriticalKernelErrors(text) {\n  return /(panic|segfault|oom|out of memory|kernel panic|call trace|I\\/O error|filesystem error)/i.test(text);\n}\n\nfunction containsGenericErrors(text) {\n  return /(error|failed|failure)/i.test(text);\n}\n\nfunction extractKernelVersion(text) {\n  const m1 = text.match(/kernel\\s*[:=]\\s*([^\\n\\r]+)/i);\n  if (m1) return m1[1].trim();\n  const m2 = text.match(/uname\\s+-r[\\s\\S]*?\\n([^\\n\\r]+)/i);\n  if (m2) return m2[1].trim();\n  const m3 = text.match(/\\b\\d+\\.\\d+\\.\\d+[^\\s\\n\\r]*/);\n  if (m3) return m3[0].trim();\n  return '';\n}\n\nfunction extractUptimeHours(text) {\n  const m = text.match(/up\\s+((\\d+)\\s+min|(\\d+):(\\d+)|(\\d+)\\s+days?)/i);\n  if (!m) return null;\n  if (m[2]) return Math.max(0, Number(m[2]) / 60);\n  if (m[3] && m[4]) return Number(m[3]) + (Number(m[4]) / 60);\n  if (m[5]) return Number(m[5]) * 24;\n  return null;\n}\n\nfunction diskIssue(text) {\n  return /(read-only|filesystem full|no space left|mount failed|unable to mount)/i.test(text);\n}\n\nfunction memoryIssue(text) {\n  return /(oom|out of memory|swap exhausted|memory allocation failure)/i.test(text);\n}\n\nlet score = 100;\nconst findings = [];\n\nconst kernelVersion = extractKernelVersion(log);\nif (!kernelVersion) {\n  score -= 40;\n  findings.push('Kernel version could not be identified');\n} else {\n  findings.push(`Running kernel detected: ${kernelVersion}`);\n}\n\nconst failedServices = countFailedServices(log);\nif (failedServices > 0) {\n  const deduction = Math.min(45, failedServices * 15);\n  score -= deduction;\n  findings.push(`${failedServices} failed service(s) detected`);\n} else {\n  findings.push('No failed services detected');\n}\n\nif (containsCriticalKernelErrors(log)) {\n  score -= 20;\n  findings.push('Critical kernel/system errors detected in logs');\n} else if (containsGenericErrors(log)) {\n  score -= 8;\n  findings.push('Generic error patterns detected in logs');\n} else {\n  findings.push('No critical error patterns detected');\n}\n\nconst uptimeHours = extractUptimeHours(log);\nif (uptimeHours !== null && uptimeHours > 24) {\n  score -= 10;\n  findings.push('Uptime suggests reboot timing may be inconsistent with expected post-upgrade reboot');\n} else if (uptimeHours !== null) {\n  findings.push(`Uptime after reboot looks plausible (${uptimeHours.toFixed(2)}h)`);\n}\n\nif (diskIssue(log)) {\n  score -= 15;\n  findings.push('Disk or mount related issue detected');\n}\n\nif (memoryIssue(log)) {\n  score -= 10;\n  findings.push('Memory pressure or OOM pattern detected');\n}\n\nscore = Math.max(0, Math.min(100, score));\n\nlet severity = 'success';\nlet riskLevel = 'low';\nif (score < 85) {\n  severity = 'warning';\n  riskLevel = 'medium';\n}\nif (score < 60) {\n  severity = 'critical';\n  riskLevel = 'high';\n}\n\nreturn [{\n  json: {\n    ...$json,\n    kernel_healthscore: score,\n    kernel_version_detected: kernelVersion,\n    failed_services_count: failedServices,\n    findings_base: findings,\n    severity_base: severity,\n    risk_level_base: riskLevel\n  }\n}];\n"
+      },
+      "id": "ce66c640-b05e-4db4-b0fe-53bc423de0e0",
+      "name": "Compute_Healthscore_Base",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "text": "=Create the executive postcheck assessment from the following data.\\n\\nHostname: {{$json.hostname}}\\nSystem ID: {{$json.system_id || ''}}\\nExecution Ticket ID: {{$json.execution_ticket_id || ''}}\\nCustomer Name: {{$json.customer_name || ''}}\\nCustomer Email: {{$json.customer_email || ''}}\\n\\nDeterministic Kernel Healthscore: {{$json.kernel_healthscore}}\\nBase Severity: {{$json.severity_base}}\\nDetected Kernel Version: {{$json.kernel_version_detected || ''}}\\nFailed Services Count: {{$json.failed_services_count || 0}}\\n\\nBase Findings:\\n{{ JSON.stringify($json.findings_base || []) }}\\n\\nAWX Postcheck Log:\\n{{$json.log}}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "id": "3693d7e4-fabf-4ea7-a80d-ebe91131ac5c",
+      "name": "AI_Agent_Executive_Summary",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        2768,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4.1-mini",
+        "options": {
+          "maxTokens": 250,
+          "temperature": 0.2
+        }
+      },
+      "id": "a2d4cf14-70d6-46b6-b2f5-bee8939f9d75",
+      "name": "OpenAI_Chat_Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2736,
+        832
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "uOtLCnSwHPd8ZIef",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"executive_summary\": \"\",\n  \"customer_summary\": \"\",\n  \"recommended_action\": \"\",\n  \"risk_level\": \"low\",\n  \"mail_subject\": \"\",\n  \"mail_body\": \"\",\n  \"technical_findings\": [\n    \"\"\n  ]\n}"
+      },
+      "id": "2b7a448d-664a-4f07-9fd0-583fb85d1fe7",
+      "name": "Structured_Output_Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        2928,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "name": "healthscore_context_tool",
+        "description": "Use this tool only if you need a short explanation of how the deterministic kernel healthscore should be interpreted.",
+        "jsCode": "return `Kernel healthscore interpretation:\\n90-100 = excellent post-upgrade state\\n75-89 = acceptable with minor warnings\\n60-74 = degraded, manual review recommended\\n0-59 = critical, escalation required\\n\\nThe score itself is deterministic and must not be changed by the agent.`;"
+      },
+      "id": "01b3ffaa-81e3-4783-a95b-a08219914c5e",
+      "name": "Healthscore_Context_Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        3088,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "b7902b77-c76a-42b2-a24a-d2a1346ff72c",
+      "name": "Merge_Healthscore_and_Agent",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3024,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $json;\nconst agent = item.output || item.result || item;\n\nreturn [{\n  json: {\n    ...item,\n    executive_summary: agent.executive_summary || item.executive_summary || '',\n    customer_summary: agent.customer_summary || item.customer_summary || '',\n    recommended_action: agent.recommended_action || item.recommended_action || '',\n    risk_level: agent.risk_level || item.risk_level_base || 'low',\n    mail_subject: agent.mail_subject || `Kernel Upgrade Successful – ${item.hostname || 'host'}`,\n    mail_body: agent.mail_body || '',\n    technical_findings_ai: agent.technical_findings || []\n  }\n}];\n"
+      },
+      "id": "cf69da95-50da-4726-92af-0faf1d41d304",
+      "name": "Merge_Postcheck_And_Agent_Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3264,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO kernel_postcheck_logs\\n(\\n  hostname,\\n  system_id,\\n  execution_ticket_id,\\n  awx_job_id,\\n  log,\\n  kernel_version_detected,\\n  failed_services_count,\\n  kernel_healthscore,\\n  severity,\\n  risk_level,\\n  executive_summary,\\n  customer_summary,\\n  recommended_action,\\n  technical_findings_json,\\n  created_at\\n)\\nVALUES\\n(\\n  '{{$json.hostname}}',\\n  '{{$json.system_id}}',\\n  '{{$json.execution_ticket_id}}',\\n  '{{$json.awx_job_id}}',\\n  '{{($json.log || '').replace(/'/g, \"''\")}}',\\n  '{{$json.kernel_version_detected}}',\\n  {{$json.failed_services_count || 0}},\\n  {{$json.kernel_healthscore || 0}},\\n  '{{$json.severity_base}}',\\n  '{{$json.risk_level}}',\\n  '{{($json.executive_summary || '').replace(/'/g, \"''\")}}',\\n  '{{($json.customer_summary || '').replace(/'/g, \"''\")}}',\\n  '{{($json.recommended_action || '').replace(/'/g, \"''\")}}',\\n  '{{JSON.stringify($json.technical_findings_ai || []).replace(/'/g, \"''\")}}'::jsonb,\\n  NOW()\\n);",
+        "options": {}
+      },
+      "id": "a4887134-fd29-438c-bfb6-dfe842f95fc5",
+      "name": "Insert_Postcheck_Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3504,
+        992
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://34.122.130.98/apirest.php/Ticket/{{$json.execution_ticket_id}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "4b10b148-c445-4cc8-ae76-da868770bf3e",
+      "name": "Get_GLPI_Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3744,
+        992
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3XLybECyd7uBFm4V",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.status}}",
+              "rightValue": 6,
+              "operator": {
+                "type": "number",
+                "operation": "notEqual"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e2e4b6fb-1f5f-476b-a515-0435cbb0e510",
+      "name": "IF_Ticket_Not_Closed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3984,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://34.122.130.98/apirest.php/Ticket/{{$node[\"Merge_Postcheck_And_Agent_Result\"].json.execution_ticket_id}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"status\": 6,\n    \"solution\": \"Kernel upgrade successfully executed and validated via automated postcheck. Healthscore: \" + $node[\"Merge_Postcheck_And_Agent_Result\"].json.kernel_healthscore + \"/100. Summary: \" + $node[\"Merge_Postcheck_And_Agent_Result\"].json.executive_summary\n  }\n}",
+        "options": {}
+      },
+      "id": "17df22c4-1486-4cea-b74c-e8d8acd0cb7a",
+      "name": "Close_GLPI_Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4224,
+        896
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3XLybECyd7uBFm4V",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "bae87b19-852f-479c-810a-5eb06bcf7e7f",
+      "name": "Merge_Ticket_Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        4464,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "to_email",
+              "value": "={{$node[\"Merge_Postcheck_And_Agent_Result\"].json.customer_email}}",
+              "type": "string"
+            },
+            {
+              "name": "subject",
+              "value": "={{$node[\"Merge_Postcheck_And_Agent_Result\"].json.mail_subject}}",
+              "type": "string"
+            },
+            {
+              "name": "body",
+              "value": "={{$node[\"Merge_Postcheck_And_Agent_Result\"].json.mail_body || ('Dear ' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.customer_name || 'Customer') + ',\\n\\n' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.customer_summary || 'Your scheduled kernel upgrade was completed successfully.') + '\\n\\nTechnical status summary:\\n- Hostname: ' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.hostname || '') + '\\n- Healthscore: ' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.kernel_healthscore || '') + '/100\\n- Detected kernel: ' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.kernel_version_detected || '') + '\\n- Execution ticket: ' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.execution_ticket_id || '') + '\\n\\nExecutive summary:\\n' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.executive_summary || '') + '\\n\\nRecommended action:\\n' + ($node[\"Merge_Postcheck_And_Agent_Result\"].json.recommended_action || '') + '\\n\\nBest regards\\nAutomation Platform')}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "46499c14-9ebf-484b-bc91-00323ead142e",
+      "name": "Prepare_Customer_Email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4704,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "hanspeter.erl66@gmail.com",
+        "toEmail": "hanspeter.erl66@gmail.com",
+        "subject": "={{$json.subject}}",
+        "options": {}
+      },
+      "id": "9dcf5062-19fd-4646-9745-f004308ed26e",
+      "name": "Send_Customer_Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        4944,
+        992
+      ],
+      "webhookId": "e719a2f8-e969-43d5-8084-9e42b8698cb7",
+      "credentials": {
+        "smtp": {
+          "id": "zNzjgdjk4Xr1NAMG",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"postcheck_completed\",\n  \"hostname\": $node[\"Merge_Postcheck_And_Agent_Result\"].json.hostname,\n  \"execution_ticket_id\": $node[\"Merge_Postcheck_And_Agent_Result\"].json.execution_ticket_id,\n  \"kernel_healthscore\": $node[\"Merge_Postcheck_And_Agent_Result\"].json.kernel_healthscore,\n  \"kernel_version_detected\": $node[\"Merge_Postcheck_And_Agent_Result\"].json.kernel_version_detected,\n  \"risk_level\": $node[\"Merge_Postcheck_And_Agent_Result\"].json.risk_level,\n  \"executive_summary\": $node[\"Merge_Postcheck_And_Agent_Result\"].json.executive_summary\n}",
+        "options": {}
+      },
+      "id": "bbade4aa-4245-4a79-bb86-5d79fb758fed",
+      "name": "Respond_Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        5184,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "error_status",
+              "value": "AWX postcheck job failed",
+              "type": "string"
+            },
+            {
+              "name": "hostname",
+              "value": "={{$node[\"Store_AWX_Job_Metadata\"].json.hostname}}",
+              "type": "string"
+            },
+            {
+              "name": "execution_ticket_id",
+              "value": "={{$node[\"Store_AWX_Job_Metadata\"].json.execution_ticket_id}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "255f34f2-2e3d-4d5b-8bfd-589780849268",
+      "name": "Prepare_Failed_Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2048,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\":\"postcheck_failed\",\"message\":$json.error_status,\"hostname\":$json.hostname,\"execution_ticket_id\":$json.execution_ticket_id}",
+        "options": {}
+      },
+      "id": "89562ecd-b82c-4e62-b5d4-8c6440b1db43",
+      "name": "Respond_Failed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2288,
+        1232
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6a5760bf-6519-482b-a56c-b4b5e678fa3f",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        128,
+        1264
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "PostcheckTrigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize_Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize_Input": {
+      "main": [
+        [
+          {
+            "node": "Get_Booking_Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Booking_Record": {
+      "main": [
+        [
+          {
+            "node": "Trigger_AWX_Postcheck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger_AWX_Postcheck": {
+      "main": [
+        [
+          {
+            "node": "Store_AWX_Job_Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store_AWX_Job_Metadata": {
+      "main": [
+        [
+          {
+            "node": "Wait_30s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait_30s": {
+      "main": [
+        [
+          {
+            "node": "Check_AWX_Job_Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check_AWX_Job_Status": {
+      "main": [
+        [
+          {
+            "node": "Switch_Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch_Status": {
+      "main": [
+        [
+          {
+            "node": "Get_AWX_Events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare_Failed_Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait_30s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_AWX_Events": {
+      "main": [
+        [
+          {
+            "node": "Parse_Postcheck_Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse_Postcheck_Output": {
+      "main": [
+        [
+          {
+            "node": "Compute_Healthscore_Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute_Healthscore_Base": {
+      "main": [
+        [
+          {
+            "node": "AI_Agent_Executive_Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI_Chat_Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI_Agent_Executive_Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured_Output_Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI_Agent_Executive_Summary",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Healthscore_Context_Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI_Agent_Executive_Summary",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI_Agent_Executive_Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge_Healthscore_and_Agent",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge_Healthscore_and_Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge_Postcheck_And_Agent_Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge_Postcheck_And_Agent_Result": {
+      "main": [
+        [
+          {
+            "node": "Insert_Postcheck_Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert_Postcheck_Log": {
+      "main": [
+        [
+          {
+            "node": "Get_GLPI_Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_GLPI_Ticket": {
+      "main": [
+        [
+          {
+            "node": "IF_Ticket_Not_Closed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Ticket_Not_Closed": {
+      "main": [
+        [
+          {
+            "node": "Close_GLPI_Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge_Ticket_Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Close_GLPI_Ticket": {
+      "main": [
+        [
+          {
+            "node": "Merge_Ticket_Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge_Ticket_Paths": {
+      "main": [
+        [
+          {
+            "node": "Prepare_Customer_Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare_Customer_Email": {
+      "main": [
+        [
+          {
+            "node": "Send_Customer_Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send_Customer_Email": {
+      "main": [
+        [
+          {
+            "node": "Respond_Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare_Failed_Response": {
+      "main": [
+        [
+          {
+            "node": "Respond_Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize_Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "1ca71a11-d79e-480a-b3b2-bb09b430f88e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "pu73z5jTHQBOdLzB",
+  "tags": []
+}
