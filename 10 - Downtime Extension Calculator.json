@@ -1,0 +1,389 @@
+{
+  "name": "10 - Downtime Extension Calculator",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Cron (Check every 15m)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        112
+      ],
+      "id": "94f908be-8691-4e9b-9cce-40a2e4338c7e"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  system_id, \n  hostname, \n  customer_email, \n  downtime_end, \n  token\nFROM maintenance_windows\nWHERE request_status = 'IN_PROGRESS'\n  AND downtime_end < NOW() + INTERVAL '30 minutes';",
+        "options": {}
+      },
+      "name": "Postgres - Find critical upgrades",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        -608,
+        112
+      ],
+      "id": "937adc7b-e949-4148-81b2-19aef08d6d69",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Konfiguration: Wie viel Zeit brauchen wir noch?\n// Angenommen, das Kernel Upgrade braucht starr noch 30 Min + 15 Min Puffer = 45 Minuten ab JETZT.\nconst neededMinutes = 30; \nconst bufferMinutes = 15;\nconst totalNeededMinutes = neededMinutes + bufferMinutes;\n\n// Wenn Input aus DB kommt (falls nicht, nutzen wir Dummy-Daten zum Testen)\nconst downtimeEndStr = $json.downtime_end || \"2026-03-25T22:30:00Z\";\n\nconst now = new Date();\nconst originalDowntimeEnd = new Date(downtimeEndStr);\n\n// Wann sind wir voraussichtlich fertig?\nconst expectedFinishTime = new Date(now.getTime() + (totalNeededMinutes * 60000));\n\nlet needsExtension = false;\nlet extendedMinutes = 0;\nlet newDowntimeEnd = originalDowntimeEnd;\n\n// Sind wir NACH dem offiziellen Ende fertig?\nif (expectedFinishTime > originalDowntimeEnd) {\n  needsExtension = true;\n  \n  // Differenz in Minuten berechnen\n  const diffMs = expectedFinishTime - originalDowntimeEnd;\n  let diffMinutes = Math.ceil(diffMs / 60000);\n  \n  // Auf die nächste Viertelstunde (15 Min) aufrunden\n  const remainder = diffMinutes % 15;\n  if (remainder > 0) {\n    diffMinutes += (15 - remainder);\n  }\n  \n  // Neues erweitertes Ende setzen\n  extendedMinutes = diffMinutes;\n  newDowntimeEnd = new Date(originalDowntimeEnd.getTime() + (extendedMinutes * 60000));\n}\n\nreturn [{\n  json: {\n    ...$json,\n    original_downtime_end: originalDowntimeEnd.toISOString(),\n    expected_finish_time: expectedFinishTime.toISOString(),\n    needs_extension: needsExtension,\n    added_minutes: extendedMinutes,\n    new_downtime_end: newDowntimeEnd.toISOString(),\n  }\n}];"
+      },
+      "name": "Code - Berechne Verlängerung",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        112
+      ],
+      "id": "bf3a80d2-9994-4b86-b4f4-e6d557ff1184"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_extension }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "If - Verlängerung nötig?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        112
+      ],
+      "id": "46d77f52-80fe-4b1b-823b-5e25fef8aab7"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "maintenance_windows",
+          "mode": "list",
+          "cachedResultName": "maintenance_windows"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "downtime_end": "={{ $json.new_downtime_end }}",
+            "id": 0
+          },
+          "matchingColumns": [
+            "system_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_email",
+              "displayName": "customer_email",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "system_id",
+              "displayName": "system_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hostname",
+              "displayName": "hostname",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "downtime_start",
+              "displayName": "downtime_start",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "downtime_end",
+              "displayName": "downtime_end",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timezone",
+              "displayName": "timezone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "request_status",
+              "displayName": "request_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "precheck_planned_at",
+              "displayName": "precheck_planned_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "precheck_triggered_at",
+              "displayName": "precheck_triggered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "execution_planned_at",
+              "displayName": "execution_planned_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "glpi_precheck_ticket_id",
+              "displayName": "glpi_precheck_ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "glpi_execution_ticket_id",
+              "displayName": "glpi_execution_ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "comments",
+              "displayName": "comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "Postgres - Update Ende",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "95b00eb9-d335-41a3-8d95-f070213b8329",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "hanspeter.erl66@gmail.com",
+        "subject": "⚠️ WICHTIG: Verlängerung der Wartungsarbeiten an {{ $json.hostname }}",
+        "message": "WICHTIG: Die Wartungsarbeiten am System linux-sandbox dauern aktuell etwas länger. Das Wartungsfenster wurde sicherheitshalber um 30 Minuten verlängert",
+        "options": {}
+      },
+      "name": "Customer Email - Extension",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "410df0ff-42e6-43ab-9454-a10d0e4df924",
+      "webhookId": "ec2b8075-a479-4c77-9014-24dd43abc535"
+    },
+    {
+      "parameters": {},
+      "name": "No-Op (Keine Verspätung)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ],
+      "id": "0d5192a9-9c0e-4fbd-bc7b-3452989ad42a"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron (Check every 15m)": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Find critical upgrades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Find critical upgrades": {
+      "main": [
+        [
+          {
+            "node": "Code - Berechne Verlängerung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Berechne Verlängerung": {
+      "main": [
+        [
+          {
+            "node": "If - Verlängerung nötig?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If - Verlängerung nötig?": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Update Ende",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No-Op (Keine Verspätung)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Update Ende": {
+      "main": [
+        [
+          {
+            "node": "Customer Email - Extension",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "325b87fd-65d9-46a2-8442-b31633cec8b9",
+  "meta": {
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "4q5RgNImRs6Zv5Hr",
+  "tags": []
+}
