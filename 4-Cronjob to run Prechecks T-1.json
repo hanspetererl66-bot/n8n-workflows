@@ -1,0 +1,180 @@
+{
+  "name": "4-Cronjob to run Prechecks T-1",
+  "nodes": [
+    {
+      "parameters": {
+        "fieldToSplitOut": "1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        176,
+        -176
+      ],
+      "id": "e78fe885-1b01-4ce2-841b-4714fc402684",
+      "name": "Split - Each Maintenance Window"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "551a303b-6623-4ca5-9b8f-bd211901cabd",
+              "leftValue": "={{$json.length > 0}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -96,
+        -64
+      ],
+      "id": "b0ad7344-ec63-4416-90c5-be3325662b2b",
+      "name": "IF - Records Found"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM maintenance_windows\nWHERE downtime_start BETWEEN CURRENT_TIMESTAMP\n                         AND CURRENT_TIMESTAMP + INTERVAL '24 hours'\n  AND request_status IN ('submitted', 'confirmed')\nORDER BY downtime_start ASC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -304,
+        -64
+      ],
+      "id": "dd71cbe9-7e10-4645-b4f7-c81388a826e3",
+      "name": "Postgres - Find Due Prechecks",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -512,
+        -64
+      ],
+      "id": "32eb747b-9bcb-437d-913c-391793e06446",
+      "name": "Cron - Check Maintenance Windows"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "Om6HvYrB5fpFQkQn",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Om6HvYrB5fpFQkQn",
+          "cachedResultName": "5 - PreCheckKernel Workflow"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        384,
+        -176
+      ],
+      "id": "fa605ea1-a45d-47da-853b-228298ad0dc9",
+      "name": "Call '5 - PreCheckKernel Workflow'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "IF - Records Found": {
+      "main": [
+        [
+          {
+            "node": "Split - Each Maintenance Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Find Due Prechecks": {
+      "main": [
+        [
+          {
+            "node": "IF - Records Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron - Check Maintenance Windows": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Find Due Prechecks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split - Each Maintenance Window": {
+      "main": [
+        [
+          {
+            "node": "Call '5 - PreCheckKernel Workflow'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "91ee6230-7764-4762-a148-c37b259e191a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "AK3gtuiwD3IUIsKe",
+  "tags": []
+}

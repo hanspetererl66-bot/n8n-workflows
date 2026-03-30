@@ -1,0 +1,171 @@
+{
+  "name": "2-Lookup Downtime Request",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  id,\n  customer_name,\n  customer_email,\n  system_id,\n  hostname,\n  timezone,\n  comments,\n  request_status\nFROM downtime_requests\nWHERE booking_token = $1\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.query.token }}"
+        }
+      },
+      "id": "5d2cfeff-d509-40a0-a11f-c855b0437f2f",
+      "name": "DB Load Downtime Request",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        -1008
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"error\": true,\n  \"message\": \"Request not found\"\n}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "89ad138e-5670-4ecf-b7ef-da953f7ab8b7",
+      "name": "Respond Request Not Found",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -880
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "65accf3f-e3c8-423f-a99d-7f68e0222f73",
+      "name": "Respond Request Data",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -1120
+      ]
+    },
+    {
+      "parameters": {
+        "path": "get-downtime-request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1b7b5090-d1dc-469a-bfba-ea4feec4a2e1",
+      "name": "Get-Downtime-Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        -1008
+      ],
+      "webhookId": "43c304a6-bdc5-431e-b15c-b4fbbb204785"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7f5f9b49-2666-4e81-a4af-708eab864dd9",
+              "leftValue": "={{ $json.request_status }}",
+              "rightValue": "request_sent",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -432,
+        -1008
+      ],
+      "id": "a6a0fb51-c5e2-4e83-9dca-bbb69994e453",
+      "name": "If"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "DB Load Downtime Request": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get-Downtime-Request": {
+      "main": [
+        [
+          {
+            "node": "DB Load Downtime Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Respond Request Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Request Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "97db63de-8af5-4b93-ba9c-20f65288820f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "jhZCoOHbbxcn3WRM",
+  "tags": []
+}

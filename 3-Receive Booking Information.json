@@ -1,0 +1,340 @@
+{
+  "name": "3-Receive Booking Information",
+  "nodes": [
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "=downtime_start",
+              "stringValue": "={{ $('Receive Booking Information').first().json.body.downtime_start }}"
+            },
+            {
+              "name": "=downtime_end",
+              "stringValue": "={{ $('Receive Booking Information').first().json.body.downtime_end }}"
+            },
+            {
+              "name": "=timezone",
+              "stringValue": "={{ $('Receive Booking Information').first().json.body.booking_timezone }}"
+            },
+            {
+              "name": "=comments",
+              "stringValue": "={{ $('Receive Booking Information').first().json.body.booking_comment }}"
+            },
+            {
+              "name": "=booking_token",
+              "stringValue": "={{ $('Receive Booking Information').first().json.body.booking_token }}"
+            },
+            {
+              "name": "=request_status",
+              "stringValue": "BOOKED"
+            },
+            {
+              "name": "=booking_submitted_at",
+              "stringValue": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "15167ea7-ba9b-4989-bb31-e2d7dedd9677",
+      "name": "Set - Normalize Booking Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        -96,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM downtime_requests WHERE booking_token = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.booking_token }}"
+        }
+      },
+      "id": "8d628a5c-d522-4933-9c5c-2162caacd588",
+      "name": "Postgres - Load Booking Request By Token1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        -304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "fa4f65e2-81f0-41bc-adcb-18b1360eadd7",
+      "name": "NoOp - Invalid Booking Ignored1",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        560,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "downtime-booking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c79decb8-1de3-4cd1-bf28-21b8898ff7dc",
+      "name": "Receive Booking Information",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        -304
+      ],
+      "webhookId": "680de7cf-4c08-4e78-8c69-8b7d9fa97c50"
+    },
+    {
+      "parameters": {
+        "fromEmail": "hanspeter.erl@gmail.com",
+        "toEmail": "={{$json.customer_email}}",
+        "subject": "={{ 'Downtime request approved for ' + $json.system_id + ' / ' + $json.hostname }}",
+        "text": "=Dear customer,\n\n{{ 'Downtime request approved for ' + $json.system_id + ' / ' + $json.hostname }}\n\nbest\nTechOps team",
+        "options": {}
+      },
+      "id": "058899ff-d65a-4ae7-93b3-3f4722ef52fe",
+      "name": "Send Email - Downtime Request Approved",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        -400
+      ],
+      "webhookId": "c56bac7d-d06f-4158-87bb-e64a0b81826e",
+      "credentials": {
+        "smtp": {
+          "id": "zNzjgdjk4Xr1NAMG",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Your downtime request is being reviewed. You will receive an email confirmation shortly.', request_status: 'submitted', downtime_start: $json.downtime_start, downtime_end: $json.downtime_end, system_id: $json.system_id, hostname: $json.hostname }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "2dc1bb20-82ca-4556-9ad5-97624c4dda8d",
+      "name": "Respond - Success Message Back To Form",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        128,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.customer_name}}",
+              "operation": "isNotEmpty"
+            },
+            {
+              "value1": "={{$json.downtime_start}}",
+              "operation": "isNotEmpty"
+            },
+            {
+              "value1": "={{$json.downtime_end}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "fa902aac-69dc-4083-a3bb-8e16f3771b04",
+      "name": "IF - Booking Input Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        352,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO maintenance_windows (\n  customer_email,\n  customer_name,\n  system_id,\n  hostname,\n  downtime_start,\n  downtime_end,\n  timezone,\n  request_status,\n  precheck_planned_at,\n  comments\n)\nVALUES (\n  $1,\n  $2,\n  $3,\n  $4,\n  $5::timestamp,\n  $6::timestamp,\n  $7,\n  $8,\n  $9,\n  NULLIF($10, 'leer')\n)\nRETURNING *;\n",
+        "options": {
+          "queryReplacement": "={{$('Calculate Precheck').first().json.customer_email}},{{$('Calculate Precheck').first().json.customer_name}},{{$('Calculate Precheck').first().json.system_id}},{{$('Calculate Precheck').first().json.hostname}},{{$('Calculate Precheck').first().json.downtime_start}},{{$('Calculate Precheck').first().json.downtime_end}},{{$('Calculate Precheck').first().json.timezone}},BOOKED,{{$('Calculate Precheck').first().json.precheck_planned_at}},{{$('Calculate Precheck').first().json.comments || 'leer'}}"
+        }
+      },
+      "id": "a8afadcc-23a5-4a1b-84fb-29c63abc1d90",
+      "name": "Insert Maintenance Window",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        992,
+        -400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE downtime_requests \nSET downtime_start = $1::timestamp, \n    downtime_end = $2::timestamp, \n    timezone = $3, \n    comments = NULLIF($4, 'no comment'), \n    request_status = 'BOOKED' \nWHERE booking_token = $5;\n\n",
+        "options": {
+          "queryReplacement": "={{ $json.downtime_start }},{{ $json.downtime_end }},{{ $json.timezone }},{{ $json.comments || 'no comment' }},{{ $json.booking_token }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        768,
+        -400
+      ],
+      "id": "0ec52662-1141-46ff-b962-7dc89f7633d7",
+      "name": "Update Downtime request",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const startRaw = $json.downtime_start;\nconst endRaw = $json.downtime_end;\n\n// Wir wandeln es sicherheitshalber in Text um, um es in der Fehlermeldung anzuzeigen\nconst startStr = String(startRaw);\nconst endStr = String(endRaw);\n\nconst start = new Date(startRaw);\nconst end = new Date(endRaw);\n\n// Wenn aus dem Input keine echte Zeit berechnet werden kann:\nif (isNaN(start.getTime()) || isNaN(end.getTime())) {\n  // DIE NEUE FEHLERMELDUNG ZEIGT DEN ECHTEN INHALT:\n  throw new Error(`Fehler bei der Zeitberechnung! Ich habe folgendes empfangen: Start=\"${startStr}\" und Ende=\"${endStr}\". (Tipp: Wenn hier ein n8n-Code wie {{ $json... }} steht, hast du im Set-Node vergessen, auf das Zahnrad für \"Expression\" zu klicken!)`);\n}\n\n// 12 Stunden für Precheck abziehen\nconst precheck = new Date(start);\nprecheck.setHours(precheck.getHours() - 12);\n\n// Dauer in Minuten berechnen\nconst durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);\n\n// Ausgabe\nreturn [{\n  json: {\n    ...$json,\n    precheck_planned_at: precheck.toISOString(),\n    maintenance_window_start: startRaw,\n    maintenance_window_end: endRaw,\n    window_duration_minutes: durationMinutes\n  }\n}];\n"
+      },
+      "id": "cb8189d3-3be9-4ce0-8579-ddc7b8c70713",
+      "name": "Calculate Precheck",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -400
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Set - Normalize Booking Input": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success Message Back To Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Load Booking Request By Token1": {
+      "main": [
+        [
+          {
+            "node": "Set - Normalize Booking Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Booking Information": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Load Booking Request By Token1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond - Success Message Back To Form": {
+      "main": [
+        [
+          {
+            "node": "IF - Booking Input Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Booking Input Valid": {
+      "main": [
+        [
+          {
+            "node": "Calculate Precheck",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NoOp - Invalid Booking Ignored1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Maintenance Window": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Downtime Request Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Downtime request": {
+      "main": [
+        [
+          {
+            "node": "Insert Maintenance Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Precheck": {
+      "main": [
+        [
+          {
+            "node": "Update Downtime request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f5751886-6762-4b54-9910-25a161ed6449",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "p99nYbfRwcvgqOFe",
+  "tags": []
+}

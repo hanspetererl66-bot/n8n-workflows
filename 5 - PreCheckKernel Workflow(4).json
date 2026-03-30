@@ -1,0 +1,1048 @@
+{
+  "name": "5 - PreCheckKernel Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.awx_url}}/api/v2/job_templates/{{$json.precheck_job_template_id}}/launch/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -224,
+        -848
+      ],
+      "id": "6b695aa5-14ee-49a3-9f4f-b9d69fe89236",
+      "name": "Trigger AWX Job",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "u0Z1ycjbBEBno3x9",
+          "name": "Header Auth account"
+        },
+        "httpBasicAuth": {
+          "id": "uzEGYftAkvB6nSnS",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -16,
+        -848
+      ],
+      "id": "e81ee91e-7d24-4350-ab84-45ed842a2e40",
+      "name": "Wait",
+      "webhookId": "ce52cd00-881c-4cdd-80a2-d06ee36bb8aa"
+    },
+    {
+      "parameters": {
+        "url": "=http://34.141.119.13:30080/api/v2/jobs/{{ $('Trigger AWX Job').item.json.job }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        176,
+        -848
+      ],
+      "id": "b441bb55-fe86-49b3-b4bf-882f39da9152",
+      "name": "Check Job Status",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "u0Z1ycjbBEBno3x9",
+          "name": "Header Auth account"
+        },
+        "httpBasicAuth": {
+          "id": "uzEGYftAkvB6nSnS",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://34.122.130.98/apirest.php/initSession",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "App-Token",
+              "value": "oiK87tYSdignGiEVYE9G6DwvoKyG8mEHhiYPAiq8"
+            },
+            {
+              "name": "Authorization",
+              "value": "user_token 2awmT1mDMEtkraPiT71nPFLRhqHxHlFqye0MK0Z6"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1264,
+        -848
+      ],
+      "id": "d1b7dfbb-1461-42ae-a019-ddd1796112ee",
+      "name": "Init GLPI Session"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "86c9904c-2c9d-4174-b8ce-415294662bf2",
+              "name": "target_ip",
+              "value": "34.40.22.118",
+              "type": "string"
+            },
+            {
+              "id": "88bb2bfa-0c75-44ff-8f16-68adbaf01876",
+              "name": "hostname",
+              "value": "linux-kernel-sandbox",
+              "type": "string"
+            },
+            {
+              "id": "f0a8e472-522e-4764-a0a3-77b175165b0c",
+              "name": "request_id",
+              "value": "REQ-1004",
+              "type": "string"
+            },
+            {
+              "id": "560a28e7-50ec-4033-89e6-b79e2996ab12",
+              "name": "awx_url",
+              "value": "http://34.141.119.13:30080",
+              "type": "string"
+            },
+            {
+              "id": "5cdc467c-4aff-4321-a9b0-dbbf6a25001c",
+              "name": "precheck_job_template_id",
+              "value": "11",
+              "type": "string"
+            },
+            {
+              "id": "10290730-0ff2-4432-a75e-05a43bcfa04d",
+              "name": "upgrade_job_template_id",
+              "value": "12",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1472,
+        -848
+      ],
+      "id": "c2dde1c6-e0fd-4a36-b952-b75352111b05",
+      "name": "Prepare Input"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://34.122.130.98/apirest.php/Ticket",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "App-Token",
+              "value": "oiK87tYSdignGiEVYE9G6DwvoKyG8mEHhiYPAiq8"
+            },
+            {
+              "name": "Session-Token",
+              "value": "={{$node[\"Init GLPI Session\"].json[\"session_token\"]}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"name\": \"Precheck Kernel Upgrade - {{$node['Prepare Input'].json['hostname']}}\",\n    \"content\": \"Automatisch erzeugtes Precheck-Ticket durch n8n.\\n\\nHostname: {{$node['Prepare Input'].json['hostname']}}\\nTarget IP: {{$node['Prepare Input'].json['target_ip']}}\\nRequest ID: {{$node['Prepare Input'].json['request_id']}}\\nProzess: Linux Kernel Precheck\",\n    \"status\": 1,\n    \"priority\": 3\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1056,
+        -848
+      ],
+      "id": "aa0a3cac-a357-433c-8093-7efe076fba44",
+      "name": "Create GLPI Ticket Precheck"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "049137e0-3b19-4a76-b273-0c7e352f4dda",
+              "name": "glpi_precheck_ticket_id",
+              "value": "={{$json.id}}",
+              "type": "string"
+            },
+            {
+              "id": "43e80e5a-a716-4ded-965e-449ebdee0e8c",
+              "name": "target_ip",
+              "value": "={{$node[\"Prepare Input\"].json[\"target_ip\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "24c555bc-3420-401a-a42a-6519da1c1018",
+              "name": "hostname",
+              "value": "={{$node[\"Prepare Input\"].json[\"hostname\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "e96ad07f-911a-4330-8226-09c68e120325",
+              "name": "request_id",
+              "value": "={{$node[\"Prepare Input\"].json[\"request_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "ea613fb0-a286-4aa3-b42a-87d096bdee97",
+              "name": "awx_url",
+              "value": "={{$node[\"Prepare Input\"].json[\"awx_url\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "4d200559-cc80-407c-be75-d442a67fa5fc",
+              "name": "precheck_job_template_id",
+              "value": "={{$node[\"Prepare Input\"].json[\"precheck_job_template_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "93f64a26-9292-4117-a732-6a5d1535ce9a",
+              "name": "upgrade_job_template_id",
+              "value": "={{$node[\"Prepare Input\"].json[\"upgrade_job_template_id\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -848,
+        -848
+      ],
+      "id": "34868d22-84a1-4dae-abfa-6e58fa275bb6",
+      "name": "Save GLPI Precheck Ticket ID"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://34.122.130.98/apirest.php/Ticket",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "App-Token",
+              "value": "oiK87tYSdignGiEVYE9G6DwvoKyG8mEHhiYPAiq8"
+            },
+            {
+              "name": "Session-Token",
+              "value": "={{$node[\"Init GLPI Session\"].json[\"session_token\"]}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"name\": \"Kernel Upgrade - {{$node['Save GLPI Precheck Ticket ID'].json['hostname']}}\",\n    \"content\": \"Automatisch erzeugtes Kernel-Upgrade-Ticket durch n8n.\\n\\nHostname: {{$node['Save GLPI Precheck Ticket ID'].json['hostname']}}\\nTarget IP: {{$node['Save GLPI Precheck Ticket ID'].json['target_ip']}}\\nRequest ID: {{$node['Save GLPI Precheck Ticket ID'].json['request_id']}}\\nReferenz Precheck Ticket: {{$node['Save GLPI Precheck Ticket ID'].json['glpi_precheck_ticket_id']}}\\nProzess: Linux Kernel Upgrade\",\n    \"status\": 1,\n    \"priority\": 3\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -640,
+        -848
+      ],
+      "id": "a0ca37a4-4836-4bfc-bb81-33e41838f561",
+      "name": "Create GLPI Ticket Kernel Upgrade"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "09d84ded-7c81-4f95-a582-8b7bd7e554a1",
+              "name": "glpi_upgrade_ticket_id",
+              "value": "={{$json.id}}",
+              "type": "string"
+            },
+            {
+              "id": "cfdca625-be44-4df1-b55e-f81c599f697b",
+              "name": "glpi_precheck_ticket_id",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"glpi_precheck_ticket_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "0c7b120d-0438-4358-bbf4-9795d053c846",
+              "name": "hostname",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"hostname\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "27a18809-da78-4b1b-bd90-67c37e55c933",
+              "name": "target_ip",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"target_ip\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "41caef31-e07c-4111-8aa3-323f53ce6173",
+              "name": "request_id",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"request_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "24301cac-8e60-46c6-b676-cf66c466b022",
+              "name": "awx_url",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"awx_url\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "977895fb-56ff-4c79-9c19-b31f9c704bd7",
+              "name": "precheck_job_template_id",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"precheck_job_template_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "c6509aed-5c71-4c40-8248-f4693593fee2",
+              "name": "upgrade_job_template_id",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"upgrade_job_template_id\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "e16159b4-08ff-4be4-a5c5-5a8df538afd7",
+              "name": "kernel",
+              "value": "={{$node[\"Save GLPI Precheck Ticket ID\"].json[\"kernel\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -432,
+        -848
+      ],
+      "id": "4c8fc874-244d-448d-97f4-d50b4b2e492e",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "awx_kernel_logs",
+          "mode": "list",
+          "cachedResultName": "awx_kernel_logs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "host_ip": "={{ $json.artifacts.precheck_kernel_upgrade.host }}",
+            "os_distro": "={{ $json.artifacts.precheck_kernel_upgrade.os.distro }}",
+            "kernel_version": "={{ $json.artifacts.precheck_kernel_upgrade.os.kernel_running }}",
+            "reboot_required": "={{ $json.artifacts.precheck_kernel_upgrade.reboot_required }}",
+            "boot_free_mb": "={{ $json.artifacts.precheck_kernel_upgrade.resources.boot_free_mb }}",
+            "job_name": "={{ $json.name }}",
+            "status": "={{ $json.summary_fields.project.status }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "job_name",
+              "displayName": "job_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "host_ip",
+              "displayName": "host_ip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "os_distro",
+              "displayName": "os_distro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "kernel_version",
+              "displayName": "kernel_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reboot_required",
+              "displayName": "reboot_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "boot_free_mb",
+              "displayName": "boot_free_mb",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        624,
+        -896
+      ],
+      "id": "84228e9b-b938-40b2-8745-f7836318f746",
+      "name": "Insert AWX Kernel Logs",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "successful",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "557d866c-0986-44cb-8729-ec495a27a642"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "12305f55-29b9-4c6d-84e9-14eaef3b62c0",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "14b5bb5b-0bb1-425a-beba-d6edf12f7865",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "error",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        368,
+        -880
+      ],
+      "id": "1c1907bf-4f05-444e-a2a5-c864c0ff498b",
+      "name": "Switch AWX Status"
+    },
+    {
+      "parameters": {
+        "url": "=http://34.141.119.13:30080/api/v2/jobs/{{$node[\"Trigger AWX Job\"].json[\"job\"]}}/job_events/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "page_size",
+              "value": "200"
+            },
+            {
+              "name": "order_by",
+              "value": "start_line"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        816,
+        -896
+      ],
+      "id": "e5e7df0c-9de2-4d58-b014-135f9f2603af",
+      "name": "Get AWX Job Events",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "uzEGYftAkvB6nSnS",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://34.122.130.98/apirest.php/Ticket/{{$node[\"Create GLPI Ticket Precheck\"].json[\"id\"]}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "App-Token",
+              "value": "oiK87tYSdignGiEVYE9G6DwvoKyG8mEHhiYPAiq8"
+            },
+            {
+              "name": "Session-Token",
+              "value": "={{$node[\"Init GLPI Session\"].json[\"session_token\"]}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"id\": \"{{$node['Create GLPI Ticket Precheck'].json['id']}}\",\n    \"status\": 6,\n    \"solution\": \"Kernel precheck completed successfully via n8n/AWX\",\n    \"content\": \"Precheck successful for {{$node['Insert AWX Kernel Logs'].json['host_ip']}}. OS={{$node['Insert AWX Kernel Logs'].json['os_distro']}}, kernel={{$node['Insert AWX Kernel Logs'].json['kernel_version']}}, reboot_required={{$node['Insert AWX Kernel Logs'].json['reboot_required']}}, boot_free_mb={{$node['Insert AWX Kernel Logs'].json['boot_free_mb']}}. AWX stdout and job events were stored in PostgreSQL.\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1824,
+        -896
+      ],
+      "id": "41dfc5d6-2ad1-44fe-b403-e9a0b6c226a9",
+      "name": "Close GLPI Precheck Ticket"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Schutz-Funktion gegen Abstürze bei fehlenden Knoten\nfunction safeGet(nodeName, field) {\n  try {\n    const nodeData = $node[nodeName];\n    if (nodeData && nodeData.json) {\n      return nodeData.json[field] ?? null;\n    }\n    return null;\n  } catch (err) {\n    return null; \n  }\n}\n\nconst events = $input.first().json.results || [];\n\nconst jobId =\n  safeGet(\"Trigger AWX Job\", \"job\") ??\n  safeGet(\"Check Job Status\", \"id\") ??\n  null;\n\nconst ticketId =\n  safeGet(\"Create GLPI Ticket Precheck\", \"id\") ?? null;\n\n// HIER SIND DIE KORREKTEN NAMEN JETZT EINGETRAGEN:\nconst requestId =\n  safeGet(\"When Executed by Another Workflow\", \"request_id\") ?? \n  safeGet(\"Edit Fields\", \"request_id\") ?? \n  null;\n\nconst hostname =\n  safeGet(\"When Executed by Another Workflow\", \"hostname\") ?? \n  safeGet(\"Edit Fields\", \"hostname\") ?? \n  null;\n\nconst hostIp =\n  safeGet(\"Insert AWX Kernel Logs\", \"host_ip\") ??\n  safeGet(\"Trigger AWX Job\", \"target_ip\") ??\n  null;\n\nconst status =\n  safeGet(\"Insert AWX Kernel Logs\", \"status\") ??\n  safeGet(\"Check Job Status\", \"status\") ??\n  null;\n\nconst osDistro =\n  safeGet(\"Insert AWX Kernel Logs\", \"os_distro\") ?? null;\n\nconst kernelVersion =\n  safeGet(\"Insert AWX Kernel Logs\", \"kernel_version\") ?? null;\n\nconst rebootRequiredRaw = safeGet(\"Insert AWX Kernel Logs\", \"reboot_required\");\nlet rebootRequired = null;\nif (rebootRequiredRaw !== null) {\n  rebootRequired = String(rebootRequiredRaw).toLowerCase().includes(\"true\");\n}\n\nconst bootFreeMbRaw = safeGet(\"Insert AWX Kernel Logs\", \"boot_free_mb\");\nconst bootFreeMb = \n  bootFreeMbRaw !== null && bootFreeMbRaw !== undefined\n    ? Number(bootFreeMbRaw)\n    : null;\n\nconst stdoutLines = [];\nstdoutLines.push(\"========================================\");\nstdoutLines.push(\"AWX KERNEL PRECHECK LOG\");\nstdoutLines.push(\"========================================\");\nstdoutLines.push(`Timestamp: ${new Date().toISOString()}`);\nstdoutLines.push(`AWX Job ID: ${jobId ?? \"\"}`);\nstdoutLines.push(`GLPI Ticket ID: ${ticketId ?? \"\"}`);\nstdoutLines.push(`Request ID: ${requestId ?? \"\"}`);\nstdoutLines.push(`Hostname: ${hostname ?? \"\"}`);\nstdoutLines.push(`Host IP: ${hostIp ?? \"\"}`);\nstdoutLines.push(`Status: ${status ?? \"\"}`);\nstdoutLines.push(`OS Distro: ${osDistro ?? \"\"}`);\nstdoutLines.push(`Kernel Version: ${kernelVersion ?? \"\"}`);\nstdoutLines.push(`Reboot Required: ${rebootRequiredRaw ?? \"\"}`); \nstdoutLines.push(`Boot Free MB: ${bootFreeMb ?? \"\"}`);\nstdoutLines.push(\"\");\nstdoutLines.push(\"=========== AWX STDOUT / EVENTS ==========\");\nstdoutLines.push(\"\");\n\nfor (const ev of events) {\n  if (ev.stdout && String(ev.stdout).trim() !== \"\") {\n    stdoutLines.push(String(ev.stdout));\n  }\n}\n\nreturn [\n  {\n    json: {\n      awx_job_id: jobId,\n      glpi_ticket_id: ticketId,\n      request_id: requestId,\n      hostname,\n      host_ip: hostIp,\n      status,\n      os_distro: osDistro,\n      kernel_version: kernelVersion,\n      reboot_required: rebootRequired, \n      boot_free_mb: bootFreeMb,\n      stdout_log: stdoutLines.join(\"\\n\"),\n      raw_job_events: JSON.stringify(events),\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        -896
+      ],
+      "id": "e6d6b770-b19e-4023-ba5c-bb802ab025ff",
+      "name": "Build AWX Log Record"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.awx_kernel_precheck_logs (\n    awx_job_id,\n    glpi_ticket_id,\n    request_id,\n    hostname,\n    host_ip,\n    status,\n    os_distro,\n    kernel_version,\n    reboot_required,\n    boot_free_mb,\n    stdout_log,\n    raw_job_events\n) VALUES (\n    $1,\n    $2,\n    $3,\n    $4,\n    $5::inet,\n    $6,\n    $7,\n    $8,\n    $9,\n    $10,\n    $11,\n    $12::jsonb\n);",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.awx_job_id,\n  $json.glpi_ticket_id,\n  $json.request_id,\n  $json.hostname,\n  $json.host_ip,\n  $json.status,\n  $json.os_distro,\n  $json.kernel_version,\n  $json.reboot_required,\n  $json.boot_free_mb,\n  $json.stdout_log,\n  JSON.stringify($json.raw_job_events)\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1216,
+        -896
+      ],
+      "id": "50b3648d-01f9-4a21-88ac-d24bdacaa8d3",
+      "name": "Insert AWX Log to Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "0JgEKAKdk4pahHxy",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/0JgEKAKdk4pahHxy",
+          "cachedResultName": "7 - Kernel Dependency Risk Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1616,
+        -896
+      ],
+      "id": "0e85ccf5-0a16-455e-a0af-509e830207db",
+      "name": "Call '7 - Kernel Dependency Risk Agent'"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d8bc35ab-d856-4e32-a4d0-4009f4ae0c1b",
+              "name": "system_id",
+              "value": "={{ $('Trigger von CronJob').first().json.system_id }}",
+              "type": "string"
+            },
+            {
+              "id": "cc88d449-83cc-4c5c-abc6-fd984274ed04",
+              "name": "target_kernel",
+              "value": "={{ $('Trigger von CronJob').first().json.target_kernel }}",
+              "type": "string"
+            },
+            {
+              "id": "2edc77d7-e91a-4fd8-8a59-cb0eba03cc49",
+              "name": "=customer_email",
+              "value": "={{ $('Trigger von CronJob').first().json.customer_email }}",
+              "type": "string"
+            },
+            {
+              "id": "413179fc-64cb-44e4-93cc-49e210635754",
+              "name": "maintenance_start",
+              "value": "={{ $('Trigger von CronJob').first().json.maintenance_start }}",
+              "type": "string"
+            },
+            {
+              "id": "e3e08005-a406-4200-b976-3b7ad1f272dd",
+              "name": "maintenance_end",
+              "value": "={{ $('Trigger von CronJob').first().json.maintenance_end }}",
+              "type": "string"
+            },
+            {
+              "id": "700c18ea-e41d-482f-a92f-1b39b77c1037",
+              "name": "awx_job_template_id",
+              "value": "={{ $('Trigger von CronJob').first().json.awx_job_template_id }}",
+              "type": "string"
+            },
+            {
+              "id": "6a444409-80d7-4ccf-95ed-9d50ccb2f261",
+              "name": "host_ip",
+              "value": "={{ $('Build AWX Log Record').first().json.host_ip }}",
+              "type": "string"
+            },
+            {
+              "id": "856274b0-3e9f-45f6-9a41-75d33efeafd3",
+              "name": "hostname",
+              "value": "={{ $('Trigger von CronJob').first().json.hostname }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1408,
+        -896
+      ],
+      "id": "29146e5d-ea8c-430f-90ec-ddb65ad27461",
+      "name": "Normalize Fields"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1648,
+        -848
+      ],
+      "id": "727c7d6c-96e8-4257-92c9-b0e70d2b69c6",
+      "name": "Trigger von CronJob"
+    }
+  ],
+  "pinData": {
+    "Trigger von CronJob": [
+      {
+        "json": {
+          "system_id": "SYS-12345",
+          "hostname": "linux-kernel-sandbox",
+          "target_ip": "34.40.22.118",
+          "target_kernel": "6.8.0-1048-gcp",
+          "request_id": "REQ-1004",
+          "awx_url": "http://34.141.119.13:30080",
+          "awx_token": "HIER_DEIN_ECHTER_AWX_TOKEN",
+          "precheck_job_template_id": "11",
+          "upgrade_job_template_id": "12",
+          "customer_email": "hanspeter.erl66@gmail.com",
+          "maintenance_start": "2026-03-25T22:00:00Z",
+          "maintenance_end": "2026-03-26T02:00:00Z"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Trigger AWX Job": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Check Job Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Job Status": {
+      "main": [
+        [
+          {
+            "node": "Switch AWX Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init GLPI Session": {
+      "main": [
+        [
+          {
+            "node": "Create GLPI Ticket Precheck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input": {
+      "main": [
+        [
+          {
+            "node": "Init GLPI Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create GLPI Ticket Precheck": {
+      "main": [
+        [
+          {
+            "node": "Save GLPI Precheck Ticket ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save GLPI Precheck Ticket ID": {
+      "main": [
+        [
+          {
+            "node": "Create GLPI Ticket Kernel Upgrade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create GLPI Ticket Kernel Upgrade": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Trigger AWX Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert AWX Kernel Logs": {
+      "main": [
+        [
+          {
+            "node": "Get AWX Job Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch AWX Status": {
+      "main": [
+        [
+          {
+            "node": "Insert AWX Kernel Logs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AWX Job Events": {
+      "main": [
+        [
+          {
+            "node": "Build AWX Log Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close GLPI Precheck Ticket": {
+      "main": [
+        []
+      ]
+    },
+    "Build AWX Log Record": {
+      "main": [
+        [
+          {
+            "node": "Insert AWX Log to Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert AWX Log to Postgres": {
+      "main": [
+        [
+          {
+            "node": "Normalize Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '7 - Kernel Dependency Risk Agent'": {
+      "main": [
+        [
+          {
+            "node": "Close GLPI Precheck Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Fields": {
+      "main": [
+        [
+          {
+            "node": "Call '7 - Kernel Dependency Risk Agent'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger von CronJob": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "fe0d6617-aa00-453c-ba8a-de338c922523",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "Om6HvYrB5fpFQkQn",
+  "tags": []
+}

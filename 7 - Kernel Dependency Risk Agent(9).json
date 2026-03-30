@@ -1,0 +1,927 @@
+{
+  "name": "7 - Kernel Dependency Risk Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1024,
+        -432
+      ],
+      "id": "eda41b75-3286-4a01-8307-55e5980eea5f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "system_id",
+              "value": "={{ $json.system_id || \"SYS-12345\" }} "
+            },
+            {
+              "name": "target_kernel",
+              "value": "={{ $json.target_kernel || \"6.8.0-1048-gcp\" }}"
+            },
+            {
+              "name": "awx_base_url",
+              "value": "http://34.141.119.13:30080"
+            },
+            {
+              "name": "hostname",
+              "value": "=linux-sandbox"
+            },
+            {
+              "name": "awx_job_template_id",
+              "value": "17"
+            },
+            {
+              "name": "customer_email",
+              "value": "hanspeter.erl66@gmail.com"
+            },
+            {
+              "name": "maintenance_start",
+              "value": "2026-03-25T22:00:00Z"
+            },
+            {
+              "name": "maintenance_end",
+              "value": "2026-03-26T02:00:00Z"
+            },
+            {
+              "name": "=host_ip",
+              "value": "{{$json.host_ip}}"
+            },
+            {
+              "name": "awx_token",
+              "value": "={{$json.awx_token}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3f51fe5b-4c8b-4522-b53e-b8442129967c",
+      "name": "Set Analysis Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        -832,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO kernel_dependency_analysis_runs (\n    system_id,\n    hostname,\n    customer_email,\n    maintenance_start,\n    maintenance_end,\n    target_kernel,\n    awx_job_template_id,\n    analysis_status\n)\nVALUES (\n    $1,\n    $2,\n    $3,\n    $4::timestamptz,\n    $5::timestamptz,\n    $6,\n    $7,\n    'PENDING'\n)\nRETURNING run_id, system_id, hostname, target_kernel, awx_job_template_id;",
+        "options": {
+          "queryReplacement": "={{$json.system_id}},{{$json.hostname}},{{$json.customer_email}},{{$json.maintenance_start}},{{$json.maintenance_end}},{{$json.target_kernel}},{{$json.awx_job_template_id}}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -624,
+        -432
+      ],
+      "id": "e4ca8034-0c55-40dd-8cc6-9cb1f1c3bbc1",
+      "name": "Postgres - Insert Analysis Run",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const db = $json;\nconst prev = $('Set Analysis Input').first().json;\n\nreturn [{\n  json: {\n    ...prev,\n    ...db,\n    run_id: db.run_id\n  }\n}];"
+      },
+      "id": "39db876f-7b68-446a-b1fe-746b22601760",
+      "name": "Code - Merge Run Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const report = $json.dependency_report || {};\n\nconst asString = (arr) => (Array.isArray(arr) ? arr.join('\\n').toLowerCase() : '');\nconst modules = asString(report.loaded_modules_raw);\nconst dkms = asString(report.dkms_modules);\nconst dbs = asString(report.database_processes);\nconst containers = asString(report.container_processes);\nconst agents = asString(report.agent_processes);\nconst multipath = asString(report.multipath_raw);\nconst failedServices = asString(report.failed_services);\nconst journal = asString(report.journal_errors);\n\nconst flags = [];\n\nif (dkms.includes('nvidia')) flags.push({severity: 'HIGH', key: 'dkms_nvidia', message: 'NVIDIA DKMS module detected'});\nif (dkms.trim().length > 0) flags.push({severity: 'MEDIUM', key: 'dkms_present', message: 'DKMS modules present'});\nif (multipath.includes('dm_multipath') || modules.includes('dm_multipath')) flags.push({severity: 'HIGH', key: 'multipath', message: 'Multipath detected'});\nif (dbs.includes('oracle')) flags.push({severity: 'HIGH', key: 'oracle', message: 'Oracle process detected'});\nif (dbs.includes('postgres')) flags.push({severity: 'MEDIUM', key: 'postgresql', message: 'PostgreSQL process detected'});\nif (dbs.includes('hdb')) flags.push({severity: 'HIGH', key: 'hana', message: 'SAP HANA process detected'});\nif (containers.includes('kubelet')) flags.push({severity: 'HIGH', key: 'kubelet', message: 'Kubernetes node components detected'});\nif (containers.includes('dockerd') || containers.includes('containerd')) flags.push({severity: 'MEDIUM', key: 'containers', message: 'Container runtime detected'});\nif (agents.includes('falcon') || agents.includes('crowdstrike')) flags.push({severity: 'HIGH', key: 'falcon', message: 'Falcon/CrowdStrike agent detected'});\nif (failedServices.trim().length > 0) flags.push({severity: 'HIGH', key: 'failed_services', message: 'There are failed services before upgrade'});\nif (journal.trim().length > 0) flags.push({severity: 'MEDIUM', key: 'journal_errors', message: 'Kernel or system errors exist in current boot log'});\n\nlet baseRisk = 'LOW';\nif (flags.some(f => f.severity === 'HIGH')) baseRisk = 'MANUAL_REVIEW';\nif (flags.filter(f => f.severity === 'HIGH').length >= 2) baseRisk = 'BLOCK';\n\nreturn [{\n  json: {\n    ...$json,\n    deterministic_assessment: {\n      base_risk: baseRisk,\n      flags\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        -432
+      ],
+      "id": "926caa66-c3fc-45ec-9afc-5686cf0be99f",
+      "name": "Code - Deterministic Preclassification"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Linux kernel dependency risk assessor for production change management.\n\nYour job is to evaluate whether a planned kernel upgrade should proceed automatically, require manual review, or be blocked.\n\nUse these principles:\n1. Safety first.\n2. Never ignore evidence of DKMS modules, storage multipath, database engines, kernel-coupled agents, or Kubernetes/container node roles.\n3. Use the deterministic code tool first.\n4. Use the compatibility rules tool next.\n5. Produce one of exactly three risk levels:\n   - PROCEED\n   - MANUAL_REVIEW\n   - BLOCK\n6. If evidence is incomplete, choose MANUAL_REVIEW, not PROCEED.\n7. If the AWX scan failed or no dependency report exists, choose BLOCK.\n8. Recommend concrete next actions.\n9. Summarize only facts visible in the provided input and tool outputs.\n10. Return only structured output that matches the required schema.\n\nDecision policy:\n- BLOCK if there are multiple independent HIGH risks, or if boot/storage/security/database compatibility is clearly uncertain.\n- MANUAL_REVIEW if there is any single HIGH risk or multiple MEDIUM risks.\n- PROCEED only if no material compatibility indicators are found and no system health warning is present.",
+        "hasOutputParser": true,
+        "options": {
+          "enableStreaming": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        -432
+      ],
+      "id": "6d3fe84a-f88d-4290-939a-1bdffce0a742",
+      "name": "AI Agent",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"risk_level\": {\n      \"type\": \"string\",\n      \"enum\": [\"PROCEED\", \"MANUAL_REVIEW\", \"BLOCK\"]\n    },\n    \"decision\": {\n      \"type\": \"string\"\n    },\n    \"summary\": {\n      \"type\": \"string\"\n    },\n    \"top_risks\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" }\n    },\n    \"recommended_actions\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" }\n    },\n    \"evidence\": {\n      \"type\": \"object\",\n      \"additionalProperties\": true\n    }\n  },\n  \"required\": [\n    \"risk_level\",\n    \"decision\",\n    \"summary\",\n    \"top_risks\",\n    \"recommended_actions\",\n    \"evidence\"\n  ]\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        400,
+        -176
+      ],
+      "id": "1bd5c087-633a-4cf3-a0b6-af98f881b7f6",
+      "name": "Structured Output Parser - Kernel Risk JSON"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {
+          "maxTokens": 1200,
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        208,
+        -80
+      ],
+      "id": "63f18832-0585-4cf2-873c-72f473df436f",
+      "name": "OpenAI Chat Model - Kernel Risk",
+      "credentials": {
+        "openAiApi": {
+          "id": "uOtLCnSwHPd8ZIef",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Call \\'6 - AWX Dependency Scan Collector\\'').first().json;\nconst report = input.dependency_report || {};\n\nconst asString = (arr) => (Array.isArray(arr) ? arr.join('\\n').toLowerCase() : '');\nconst modules = asString(report.loaded_modules_raw);\nconst dkms = asString(report.dkms_modules);\nconst dbs = asString(report.database_processes);\nconst containers = asString(report.container_processes);\nconst agents = asString(report.agent_processes);\nconst multipath = asString(report.multipath_raw);\nconst failedServices = asString(report.failed_services);\nconst journal = asString(report.journal_errors);\n\nconst flags = [];\n\nif (dkms.includes('nvidia')) flags.push({severity: 'HIGH', key: 'dkms_nvidia', message: 'NVIDIA DKMS module detected'});\nif (dkms.trim().length > 0) flags.push({severity: 'MEDIUM', key: 'dkms_present', message: 'DKMS modules present'});\nif (multipath.includes('dm_multipath') || modules.includes('dm_multipath')) flags.push({severity: 'HIGH', key: 'multipath', message: 'Multipath detected'});\nif (dbs.includes('oracle')) flags.push({severity: 'HIGH', key: 'oracle', message: 'Oracle process detected'});\nif (dbs.includes('postgres')) flags.push({severity: 'MEDIUM', key: 'postgresql', message: 'PostgreSQL process detected'});\nif (dbs.includes('hdb')) flags.push({severity: 'HIGH', key: 'hana', message: 'SAP HANA process detected'});\nif (containers.includes('kubelet')) flags.push({severity: 'HIGH', key: 'kubelet', message: 'Kubernetes node components detected'});\nif (containers.includes('dockerd') || containers.includes('containerd')) flags.push({severity: 'MEDIUM', key: 'containers', message: 'Container runtime detected'});\nif (agents.includes('falcon') || agents.includes('crowdstrike')) flags.push({severity: 'HIGH', key: 'falcon', message: 'Falcon/CrowdStrike agent detected'});\nif (failedServices.trim().length > 0) flags.push({severity: 'HIGH', key: 'failed_services', message: 'There are failed services before upgrade'});\nif (journal.trim().length > 0) flags.push({severity: 'MEDIUM', key: 'journal_errors', message: 'Kernel or system errors exist in current boot log'});\n\nlet baseRisk = 'LOW';\nif (flags.some(f => f.severity === 'HIGH')) baseRisk = 'MANUAL_REVIEW';\nif (flags.filter(f => f.severity === 'HIGH').length >= 2) baseRisk = 'BLOCK';\n\nreturn [{\n  json: {\n    base_risk: baseRisk,\n    flags\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        -432
+      ],
+      "id": "0725961f-dcab-4ee2-816f-aa3b72154ed7",
+      "name": "Custom Code Tool - Dependency Flags"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Code - Deterministic Preclassification').item.json.deterministic_assessment.base_risk }}",
+                    "rightValue": "LOW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "096b6d60-362b-4f11-a7c2-0119c6f8d181"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "62884887-4890-4357-b6df-f40f8a29957f",
+                    "leftValue": "={{ $('Code - Deterministic Preclassification').item.json.deterministic_assessment.base_risk }}",
+                    "rightValue": "MEDIUM",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "98f7a613-b717-4220-9dc1-da3208d3fc97",
+                    "leftValue": "={{ $('Code - Deterministic Preclassification').item.json.deterministic_assessment.base_risk }}",
+                    "rightValue": "HIGH",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        -448
+      ],
+      "id": "375afe0a-efac-42a8-ae42-4834224f0d94",
+      "name": "Switch - Risk Decision",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "kernel_dependency_analysis_runs",
+          "mode": "list",
+          "cachedResultName": "kernel_dependency_analysis_runs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "analysis_status": "COMPLETED",
+            "decision": "={{ $json.decision || 'MANUAL_REVIEW' }}",
+            "summary": "{{ $json.summary || \"Keine Zusammenfassung gefunden\" }}",
+            "raw_awx_artifacts": "={{ JSON.stringify($('Call \\'6 - AWX Dependency Scan Collector\\'').first().json.dependency_report || {}) }}",
+            "ai_output": "={{ JSON.stringify($json || {}) }}",
+            "updated_at": "={{ new Date().toISOString() }}",
+            "risk_level": "{{ $json.risk_level \n\n 'MANUAL_REVIEW' }}",
+            "run_id": "={{ $('Code - Merge Run Context').item.json.run_id }}",
+            "system_id": "={{ $('Code - Merge Run Context').item.json.system_id }}"
+          },
+          "matchingColumns": [
+            "run_id"
+          ],
+          "schema": [
+            {
+              "id": "run_id",
+              "displayName": "run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "system_id",
+              "displayName": "system_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hostname",
+              "displayName": "hostname",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "customer_email",
+              "displayName": "customer_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "maintenance_start",
+              "displayName": "maintenance_start",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "maintenance_end",
+              "displayName": "maintenance_end",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "target_kernel",
+              "displayName": "target_kernel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "awx_job_template_id",
+              "displayName": "awx_job_template_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "awx_job_id",
+              "displayName": "awx_job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "analysis_status",
+              "displayName": "analysis_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_level",
+              "displayName": "risk_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "decision",
+              "displayName": "decision",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "raw_awx_artifacts",
+              "displayName": "raw_awx_artifacts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ai_output",
+              "displayName": "ai_output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1264,
+        -464
+      ],
+      "id": "54cb6e93-bdd5-4da8-8fc5-d1d3ac63e3a5",
+      "name": "Postgres - Update Analysis Run",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\n// Run-ID vom alten Code-Knoten holen:\nconst runId = $('Code - Merge Run Context').first().json.run_id;\n\n// DIE WICHTIGE ÄNDERUNG: Die KI-Daten direkt vom Agenten-Knoten abgreifen\n// anstatt das \"$json\" der Datenbank-Antwort zu benutzen!\nconst agent = $('AI Agent').first().json; \n\nfor (const risk of (agent.top_risks || [])) {\n  out.push({\n    json: {\n      run_id: runId,\n      finding_type: 'risk',\n      severity: agent.risk_level === 'BLOCK'\n        ? 'HIGH'\n        : agent.risk_level === 'MANUAL_REVIEW'\n          ? 'MEDIUM'\n          : 'LOW',\n      finding_key: null,\n      finding_value: risk,\n      details: {}\n    }\n  });\n}\n\nreturn out;\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        -464
+      ],
+      "id": "3a7e00cc-4fe2-4bd0-bb32-31c7ac096dd5",
+      "name": "Code - Expand Findings"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "ve0Og0cLbyvrJSV9",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/ve0Og0cLbyvrJSV9",
+          "cachedResultName": "6 - AWX Dependency Scan Collector"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -224,
+        -432
+      ],
+      "id": "6af1d3fc-981a-453a-858b-269c0cc28754",
+      "name": "Call '6 - AWX Dependency Scan Collector'"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "kernel_dependency_findings",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": 0,
+            "run_id": "={{$json.run_id}}",
+            "finding_type": "={{$json.finding_type}}",
+            "severity": "={{$json.severity}}",
+            "finding_key": "={{$json.finding_key}}",
+            "finding_value": "={{$json.finding_value}}",
+            "details": "={{JSON.stringify($json.details)}}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "run_id",
+              "displayName": "run_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "finding_type",
+              "displayName": "finding_type",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "severity",
+              "displayName": "severity",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "finding_key",
+              "displayName": "finding_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "finding_value",
+              "displayName": "finding_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "details",
+              "displayName": "details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1648,
+        -464
+      ],
+      "id": "3b95ca3d-2db7-4920-bd25-27a3381599f2",
+      "name": "Insert rows in kernel_dependency_findings",
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "802aa6c8-f8c6-49de-9838-d60548df6cdf",
+              "name": "risk_level",
+              "value": "LOW",
+              "type": "string"
+            },
+            {
+              "id": "e94f23e2-c548-4bc5-a366-e3e6d06c625d",
+              "name": "decision",
+              "value": "PROCEED",
+              "type": "string"
+            },
+            {
+              "id": "657e3e45-d6e3-4a43-bd42-442da2b688ce",
+              "name": "summary",
+              "value": "Automatisch durch n8n freigegeben: Keine kritischen Kernel-Abhängigkeiten (z.B. DKMS) gefunden.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        -464
+      ],
+      "id": "bc8a05b8-3373-4cea-a56f-2b4a9b34aa7f",
+      "name": "Normalize Risk Decision"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "system_id": "SYS-999",
+          "target_kernel": "6.8.0-1048-gcp",
+          "hostname": "linux-kernel-sandbox",
+          "customer_email": "hanspeter.erl66@gmail.com",
+          "maintenance_start": "2026-03-25T22:00:00Z",
+          "maintenance_end": "2026-03-26T02:00:00Z",
+          "awx_job_template_id": "17",
+          "host_ip": "34.40.22.118"
+        }
+      }
+    ],
+    "Call '6 - AWX Dependency Scan Collector'": [
+      {
+        "json": {
+          "awx_job_id": 9999,
+          "dependency_report": {
+            "loaded_modules_raw": [
+              "ext4",
+              "xfs"
+            ],
+            "dkms_modules": [],
+            "database_processes": [
+              "oracle",
+              "ora_pmon_ORCL"
+            ],
+            "container_processes": [],
+            "agent_processes": [
+              "crowdstrike_falcon"
+            ],
+            "multipath_raw": [],
+            "failed_services": "",
+            "journal_errors": ""
+          }
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Set Analysis Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Analysis Input": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Insert Analysis Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Insert Analysis Run": {
+      "main": [
+        [
+          {
+            "node": "Code - Merge Run Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Merge Run Context": {
+      "main": [
+        [
+          {
+            "node": "Call '6 - AWX Dependency Scan Collector'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Deterministic Preclassification": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser - Kernel Risk JSON": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model - Kernel Risk": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Structured Output Parser - Kernel Risk JSON",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Custom Code Tool - Dependency Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Custom Code Tool - Dependency Flags": {
+      "main": [
+        [
+          {
+            "node": "Switch - Risk Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch - Risk Decision": {
+      "main": [
+        [
+          {
+            "node": "Normalize Risk Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Update Analysis Run": {
+      "main": [
+        [
+          {
+            "node": "Code - Expand Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Expand Findings": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in kernel_dependency_findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '6 - AWX Dependency Scan Collector'": {
+      "main": [
+        [
+          {
+            "node": "Code - Deterministic Preclassification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Risk Decision": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Update Analysis Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "12ddb44c-48df-45f2-a7f3-a9d8f4a0967b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "0JgEKAKdk4pahHxy",
+  "tags": []
+}

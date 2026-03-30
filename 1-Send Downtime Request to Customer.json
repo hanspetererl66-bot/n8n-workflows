@@ -1,0 +1,181 @@
+{
+  "name": "1-Send Downtime Request to Customer",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "function generateToken() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\nconst token = generateToken();\nreturn [{ json: { ...$json, booking_token: token } }];"
+      },
+      "id": "c0c08cf5-f06f-48b3-ba27-7d4c3f8a7f6e",
+      "name": "Generate Booking Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        -2864
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-downtime-request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e6216fb4-a0c9-483a-9efb-9b1d878f9368",
+      "name": "Webhook - Create Downtime Request1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        704,
+        -2864
+      ],
+      "webhookId": "57b95778-f240-4961-bc14-614eb30253a4"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO downtime_requests (\n  booking_token,\n  customer_email,\n  customer_name,\n  system_id,\n  hostname,\n  timezone,\n  comments,\n  requester_name,\n  requester_email,\n  request_status,\n  booking_url,\n  created_at\n)\nVALUES (\n  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW()\n)\nRETURNING id, booking_token, booking_url, customer_email;",
+        "options": {
+          "queryReplacement": "={{ $('Set Request Defaults').first().json.booking_token }},{{ $('Set Request Defaults').first().json.body.customer_email }},{{ $('Set Request Defaults').first().json.body.customer_name }},{{ $('Set Request Defaults').first().json.body.system_id }},{{ $('Set Request Defaults').first().json.body.hostname }},{{ $('Set Request Defaults').first().json.body.timezone || 'Europe/Berlin' }},{{ $('Set Request Defaults').first().json.body.comments || '' }},{{ $('Set Request Defaults').first().json.body.requester_name || '' }},{{ $('Set Request Defaults').first().json.body.requester_email || '' }},request_sent,http://35.246.254.201.nip.io/booking/{{ $('Set Request Defaults').first().json.booking_token }}\n"
+        }
+      },
+      "id": "b4ba26db-d79c-4b79-829e-b717e64554e0",
+      "name": "DB Insert Downtime Request1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        -2864
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "2Oz45cpvd71nQQ1K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\"status\": \"ok\", \"message\": \"Downtime request email sent\", \"booking_url\": $('Set Request Defaults').first().json.booking_url, \"customer_email\": $('Set Request Defaults').first().json.body.customer_email}) }}",
+        "options": {}
+      },
+      "id": "9134d10d-c009-467d-be62-46cc0ccf6586",
+      "name": "Respond to Webhook1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        -2864
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "3ab52706-08aa-4dfa-91a5-666536ac187b",
+      "name": "Set Request Defaults",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1152,
+        -2864
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "hanspeter.erl66@gmail.com",
+        "toEmail": "={{ $json.body.customer_email }}",
+        "subject": "={{ 'Maintenance window selection for system ' + $json.body.system_id }}",
+        "text": "=Dear Customer {{$json.body.customer_name}},\n\na maintenance activity has been requested for the following system:\n\nSystem ID: {{$json.body.system_id}}\nHostname: {{$json.body.hostname}}\n\nPlease select your preferred downtime window using the link below:\n\nhttp://35.246.254.201.nip.io/booking/{{ $('Set Request Defaults').first().json.booking_token }}\n\n\nComments:\n{{$json.body.comments}}\n\nBest regards\nOperations Team",
+        "options": {}
+      },
+      "id": "c0a9efed-7eb8-4764-b57d-d806225a2b1a",
+      "name": "Send Downtime Request Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        -2864
+      ],
+      "webhookId": "bc4a5c99-dd4e-48d4-9ebc-0b2b2390fb0c",
+      "credentials": {
+        "smtp": {
+          "id": "zNzjgdjk4Xr1NAMG",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Generate Booking Token": {
+      "main": [
+        [
+          {
+            "node": "Set Request Defaults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Create Downtime Request1": {
+      "main": [
+        [
+          {
+            "node": "Generate Booking Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Insert Downtime Request1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Request Defaults": {
+      "main": [
+        [
+          {
+            "node": "Send Downtime Request Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Downtime Request Email": {
+      "main": [
+        [
+          {
+            "node": "DB Insert Downtime Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0bebfaa5-758a-4072-8063-18beb40487ce",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d64f74ce7d4082e3e748d39fef572f658db6b766aef038cfc28991b7d81b209"
+  },
+  "id": "8yQ8YMqHKrP9IBMM",
+  "tags": []
+}
